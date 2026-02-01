@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>终身学习赋权生态系统实践路径构建图</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #f9fafb;
+        }
+        .main-container {
+            width: 100%;
+            max-width: 1600px; 
+            margin: 2rem auto;
+            padding: 2.5rem;
+            background-color: white;
+            border-radius: 1rem;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.05), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+        }
+        .diagram-title {
+            text-align: center;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 2.5rem;
+        }
+        .path-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+        }
+        .path-column {
+            display: flex;
+            flex-direction: column;
+            background-color: #ffffff;
+            border-radius: 0.75rem;
+            border: 1px solid #d1d5db; 
+            overflow: hidden;
+            transition: all 0.3s ease-in-out;
+        }
+        .path-column:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+        }
+        .path-header {
+            padding: 1rem 1.5rem;
+            text-align: center;
+            font-weight: 700;
+        }
+        .path-header h3 {
+            font-size: 1.25rem;
+            margin: 0;
+        }
+        .path-header p {
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+        .path-1 .path-header { background-color: #e0f2f1; color: #004d40; } 
+        .path-2 .path-header { background-color: #e3f2fd; color: #0d47a1; } 
+        .path-3 .path-header { background-color: #e8f5e9; color: #1b5e20; } 
+
+        .strategy-list {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            flex-grow: 1;
+            background-color: #f9fafb;
+        }
+        .strategy-card {
+            background-color: #ffffff;
+            border-radius: 0.5rem;
+            border: 1px solid #e5e7eb;
+            padding: 1.25rem;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .strategy-title {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .strategy-title svg {
+            width: 1.5rem;
+            height: 1.5rem;
+            margin-right: 0.75rem;
+            flex-shrink: 0;
+        }
+        .strategy-title h4 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        .path-1 .strategy-title svg { color: #00796b; }
+        .path-2 .strategy-title svg { color: #1976d2; }
+        .path-3 .strategy-title svg { color: #388e3c; }
+        
+        .details-list {
+            list-style: none;
+            padding-left: 0.5rem;
+            margin: 0;
+            font-size: 0.9rem;
+            color: #4b5563;
+        }
+        .details-list li {
+            position: relative;
+            padding-left: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+        .details-list li::before {
+            content: '›';
+            position: absolute;
+            left: 0;
+            font-weight: 700;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="main-container">
+        <h2 class="diagram-title">图3：终身学习赋权生态系统实践路径构建图</h2>
+        <div class="path-grid">
+            <!-- Path 1: Laying the Foundation -->
+            <div class="path-column path-1">
+                <div class="path-header">
+                    <h3>第一步：奠定赋权基础</h3>
+                    <p>以“本土化基点”为原则的功能性学习实践</p>
+                </div>
+                <div class="strategy-list">
+                    <div class="strategy-card">
+                        <div class="strategy-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" /></svg>
+                            <h4>重构“工具性”内容体系</h4>
+                        </div>
+                        <ul class="details-list">
+                            <li>回应“赋能性断层”，改变“娱乐化”倾向。</li>
+                            <li>开发“三保”、“三农”相关模块化课程。</li>
+                            <li>案例：“看病报销一本通”、“乡土智慧议事会”。</li>
+                        </ul>
+                    </div>
+                    <div class="strategy-card">
+                        <div class="strategy-title">
+                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h7.5" /></svg>
+                            <h4>创设“嵌入式”学习场景</h4>
+                        </div>
+                        <ul class="details-list">
+                            <li>破解“时间贫困”与“面子”焦虑。</li>
+                            <li>打造“数字学习角”，举办“摆摊式”教学。</li>
+                            <li>鼓励组建“同伴互助学习小组”。</li>
+                        </ul>
+                    </div>
+                    <div class="strategy-card">
+                        <div class="strategy-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>
+                            <h4>设计“重建性”教学模式</h4>
+                        </div>
+                        <ul class="details-list">
+                            <li>直面“原子化”社会，重建社会资本。</li>
+                            <li>推广“我的村史我来讲”等内容创作项目。</li>
+                            <li>设计“青银互助”项目，实现双向“互哺”。</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Path 2: Building the System -->
+            <div class="path-column path-2">
+                <div class="path-header">
+                    <h3>第二步：构建赋权系统</h3>
+                    <p>以教育为核心的“一体两翼”协同搭建</p>
+                </div>
+                <div class="strategy-list">
+                    <div class="strategy-card">
+                        <div class="strategy-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z" /></svg>
+                            <h4>教育核心：以“资本转化”为目标</h4>
+                        </div>
+                        <ul class="details-list">
+                            <li>重构课程内容，传授如何将经验资本转化为信息资本、治理资本。</li>
+                            <li>采用“双向反哺”、“同伴互教”等模式，在重建社会资本中传递能力。</li>
+                        </ul>
+                    </div>
+                    <div class="strategy-card">
+                        <div class="strategy-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" /></svg>
+                            <h4>技术赋能翼：提供“催化剂”与“平台”</h4>
+                        </div>
+                        <ul class="details-list">
+                            <li>建立“伴随式”服务，提供即时、在场的“在地技术辅导员”。</li>
+                            <li>推广语音转文字、短视频记录等普惠工具，为资本转化提供载体。</li>
+                        </ul>
+                    </div>
+                    <div class="strategy-card">
+                        <div class="strategy-title">
+                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18M3.75 12h16.5" /></svg>
+                            <h4>制度保障翼：建立“价值承认”与“转化渠道”</h4>
+                        </div>
+                        <ul class="details-list">
+                            <li>将采纳老年人信息资本纳入村干部绩效考核。</li>
+                            <li>打造“长者议事厅”等低门槛参与空间，并建立“限时反馈机制”。</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Path 3: Activating the Ecosystem -->
+            <div class="path-column path-3">
+                <div class="path-header">
+                    <h3>第三步：激活赋权生态</h3>
+                    <p>以“场域再造”为目标的系统循环与价值实现</p>
+                </div>
+                <div class="strategy-list">
+                    <div class="strategy-card">
+                        <div class="strategy-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 16.875h3.375m0 0h3.375m-3.375 0V13.5m0 3.375v3.375M6 10.5h2.25a2.25 2.25 0 0 0 2.25-2.25V6a2.25 2.25 0 0 0-2.25-2.25H6A2.25 2.25 0 0 0 3.75 6v2.25A2.25 2.25 0 0 0 6 10.5Zm0 9.75h2.25A2.25 2.25 0 0 0 10.5 18v-2.25a2.25 2.25 0 0 0-2.25-2.25H6a2.25 2.25 0 0 0-2.25 2.25v2.25A2.25 2.25 0 0 0 6 20.25Z" /></svg>
+                            <h4>创设“赋权式嵌入”的参与渠道</h4>
+                        </div>
+                        <ul class="details-list">
+                            <li>将老年人参与从非正式、随机状态转变为制度化、常态化安排。</li>
+                            <li>保障老年人在重大事项网络投票中的参与率与政治权利。</li>
+                        </ul>
+                    </div>
+                    <div class="strategy-card">
+                        <div class="strategy-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" /></svg>
+                            <h4>推广“与老共创”的民主协商机制</h4>
+                        </div>
+                        <ul class="details-list">
+                            <li>引入“设计正义”理念，将使用者权力前置于规则形成过程。</li>
+                            <li>建立“乡村银发数字治理共创工作坊”，让老年人参与核心设计。</li>
+                        </ul>
+                    </div>
+                    <div class="strategy-card">
+                        <div class="strategy-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-6.75c-.622 0-1.125.504-1.125 1.125v3.375m9 0h-9" /></svg>
+                            <h4>建立“贡献承认”的价值闭环机制</h4>
+                        </div>
+                        <ul class="details-list">
+                            <li>将“积分制”从行为激励升维至对多元资本的承认。</li>
+                            <li>奖励体现公共精神与独特优势的“治理贡献”行为。</li>
+                            <li>建立正向反馈闭环，激发“终身学习”的内在动力。</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

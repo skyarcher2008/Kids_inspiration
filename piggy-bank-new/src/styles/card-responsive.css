@@ -1,0 +1,94 @@
+/* 卡片模式下的响应式调整 */
+
+/* 移动端优化 */
+@media (max-width: 640px) {
+  /* TodayStats 组件调整 */
+  .card-mode .stat-card {
+    padding: 0.5rem !important;
+    margin: 0.25rem !important;
+  }
+  
+  .card-mode .stat-card h3 {
+    font-size: 0.875rem !important;
+  }
+  
+  .card-mode .stat-card .text-3xl,
+  .card-mode .stat-card .text-4xl {
+    font-size: 1.5rem !important;
+  }
+  
+  /* TodayTasks 组件调整 */
+  .card-mode .task-item {
+    padding: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  
+  .card-mode .task-item .text-base {
+    font-size: 0.875rem !important;
+  }
+  
+  /* TaskManager 组件调整 */
+  .card-mode .category-button {
+    padding: 0.5rem !important;
+    font-size: 0.875rem !important;
+  }
+  
+  .card-mode .task-template-item {
+    padding: 0.5rem !important;
+    font-size: 0.875rem !important;
+  }
+  
+  /* AchievementBadges 组件调整 */
+  .card-mode .achievement-badge {
+    padding: 0.5rem !important;
+  }
+  
+  .card-mode .achievement-badge .text-4xl {
+    font-size: 2rem !important;
+  }
+  
+  /* WeeklyChart 组件调整 */
+  .card-mode .chart-bar {
+    min-width: 2rem !important;
+  }
+  
+  /* DailyReport 组件调整 */
+  .card-mode .report-button {
+    padding: 0.5rem 1rem !important;
+    font-size: 0.875rem !important;
+  }
+}
+
+/* 平板端优化 */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .card-mode .stat-card {
+    padding: 0.75rem !important;
+  }
+  
+  .card-mode .task-item {
+    padding: 0.75rem !important;
+  }
+}
+
+/* 卡片内容区域滚动优化 */
+.card-mode .card-content {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(236, 72, 153, 0.3) transparent;
+}
+
+.card-mode .card-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.card-mode .card-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.card-mode .card-content::-webkit-scrollbar-thumb {
+  background-color: rgba(236, 72, 153, 0.3);
+  border-radius: 3px;
+}
+
+.card-mode .card-content::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(236, 72, 153, 0.5);
+}

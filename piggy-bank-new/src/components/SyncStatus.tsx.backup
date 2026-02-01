@@ -1,0 +1,111 @@
+import React, { useState, useEffect } from 'react'
+import { supabaseService } from '../lib/supabaseService'
+import { useStore } from '../stores/useStore'
+
+export const SyncStatus: React.FC = () => {
+  const [user, setUser] = useState<any>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [lastSync, setLastSync] = useState<string>('')
+  const store = useStore()
+
+  useEffect(() => {
+    checkUser()
+  }, [])
+
+  const checkUser = async () => {
+    const currentUser = await supabaseService.getCurrentUser()
+    setUser(currentUser)
+  }
+
+  const handleSync = async () => {
+    if (!user) return
+    
+    setSyncing(true)
+    try {
+      const result = await supabaseService.syncUserData({
+        totalStars: store.totalStars,
+        currentStreak: store.currentStreak,
+        dailyRecords: store.dailyRecords,
+        achievements: store.achievements,
+        customTasks: store.customTasks
+      })
+
+      if (result.success) {
+        setLastSync(new Date().toLocaleString('zh-CN'))
+        alert('数据同步成功！')
+      } else {
+        alert('同步失败：' + result.error)
+      }
+    } catch (error) {
+      alert('同步失败，请重试')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const handleLoadFromCloud = async () => {
+    if (!user) return
+
+    try {
+      const result = await supabaseService.getUserData()
+      if (result.success && result.data) {
+        // 这里需要调用 store 的方法来更新本地数据
+        // 你需要在 useStore 中添加一个 loadFromCloud 方法
+        alert('数据加载成功！')
+        window.location.reload() // 临时方案，刷新页面
+      } else {
+        alert('云端暂无数据')
+      }
+    } catch (error) {
+      alert('加载失败，请重试')
+    }
+  }
+
+  const handleSignOut = async () => {
+    await supabaseService.signOut()
+    setUser(null)
+    alert('已退出登录')
+  }
+
+  if (!user) return null
+
+  return (
+    <div className="bg-white rounded-2xl shadow-lg p-4 mb-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="text-2xl">☁️</div>
+          <div>
+            <div className="font-bold text-piggy-blue">云端同步</div>
+            <div className="text-sm text-gray-600">
+              {user.email} | {lastSync ? `上次同步: ${lastSync}` : '未同步'}
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex gap-2">
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="bg-piggy-green text-white px-3 py-1 rounded-lg text-sm hover:bg-green-600 disabled:opacity-50"
+          >
+            {syncing ? '同步中...' : '📤 同步'}
+          </button>
+          
+          <button
+            onClick={handleLoadFromCloud}
+            className="bg-piggy-blue text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-600"
+          >
+            📥 加载
+          </button>
+          
+          <button
+            onClick={handleSignOut}
+            className="bg-gray-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-gray-600"
+          >
+            退出
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

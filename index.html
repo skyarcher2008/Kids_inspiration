@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小勇士任务 - 家长管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script>
+        (function(){
+            if(typeof window.echarts==='undefined'){
+                var urls=['https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js','https://unpkg.com/echarts@5.4.3/dist/echarts.min.js'];
+                var i=0;
+                function load(){
+                    var s=document.createElement('script');
+                    s.src=urls[i++];
+                    s.onerror=function(){ if(i<urls.length) load(); };
+                    document.head.appendChild(s);
+                }
+                load();
+            }
+        })();
+    </script>
+    <!-- 使用系统默认无衬线字体作为后备方案 -->
+    <style>
+        body { 
+            font-family: 'Noto Sans SC', sans-serif; 
+            background: linear-gradient(135deg, #FFE5E5 0%, #E5F3FF 50%, #E5FFE5 100%);
+            min-height: 100vh;
+        }
+        .hero-bg {
+            background-image: url('hero-background.png');
+            background-size: cover;
+            background-position: center;
+        }
+        .card-shadow {
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .gradient-text {
+            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .floating-animation {
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+    </style>
+</head>
+<body class="pb-20">
+    <!-- Hero Section -->
+    <div class="hero-bg h-48 flex items-center justify-center relative overflow-hidden">
+        <div class="absolute inset-0 bg-white bg-opacity-20"></div>
+        <div class="relative text-center z-10">
+            <div class="floating-animation">
+                <h1 class="text-3xl font-bold gradient-text mb-2">小勇士任务</h1>
+                <p class="text-gray-700 text-sm">培养孩子的责任感与成就感</p>
+            </div>
+        </div>
+        <!-- Floating Stars -->
+        <div class="absolute top-4 left-4 w-6 h-6 bg-yellow-300 rounded-full opacity-70 floating-animation"></div>
+        <div class="absolute top-8 right-6 w-4 h-4 bg-pink-300 rounded-full opacity-60 floating-animation" style="animation-delay: 1s;"></div>
+        <div class="absolute bottom-6 left-8 w-5 h-5 bg-blue-300 rounded-full opacity-50 floating-animation" style="animation-delay: 2s;"></div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="px-4 -mt-8 relative z-20">
+        <div class="grid grid-cols-2 gap-3 mb-6">
+            <div class="bg-white rounded-2xl p-4 card-shadow text-center">
+                <div class="text-2xl font-bold text-pink-500" id="todayTasks">5</div>
+                <div class="text-xs text-gray-600">今日任务</div>
+            </div>
+            <div class="bg-white rounded-2xl p-4 card-shadow text-center">
+                <div class="text-2xl font-bold text-blue-500" id="totalPoints">128</div>
+                <div class="text-xs text-gray-600">累计积分</div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="grid grid-cols-2 gap-3 mb-6">
+            <div onclick="scrollToTaskSection()" class="bg-white rounded-2xl p-4 card-shadow text-center relative cursor-pointer hover:bg-gray-50 transition-colors">
+                <div class="text-2xl font-bold text-yellow-500" id="pendingTasks">3</div>
+                <div class="text-xs text-gray-600">待审核任务</div>
+                <div id="taskNotification" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center hidden">!</div>
+            </div>
+            <div onclick="scrollToWishSection()" class="bg-white rounded-2xl p-4 card-shadow text-center relative cursor-pointer hover:bg-gray-50 transition-colors">
+                <div class="text-2xl font-bold text-purple-500" id="pendingWishes">2</div>
+                <div class="text-xs text-gray-600">待审核心愿</div>
+                <div id="wishNotification" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center hidden">!</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="px-4 mb-6">
+        <div class="bg-white rounded-2xl p-4 card-shadow">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">快速操作</h3>
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <button onclick="showCreateTask()" class="bg-gradient-to-r from-pink-400 to-pink-500 text-white py-3 px-4 rounded-xl font-medium text-sm hover:shadow-lg transition-all duration-300 transform hover:scale-105">
+                    ➕ 创建任务
+                </button>
+                <button onclick="switchToChildView()" class="bg-gradient-to-r from-blue-400 to-blue-500 text-white py-3 px-4 rounded-xl font-medium text-sm hover:shadow-lg transition-all duration-300 transform hover:scale-105">
+                    👶 孩子视角
+                </button>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="showDeductPoints()" class="bg-gradient-to-r from-red-400 to-red-500 text-white py-3 px-4 rounded-xl font-medium text-sm hover:shadow-lg transition-all duration-300 transform hover:scale-105">
+                    ➖ 扣减积分
+                </button>
+                <button onclick="showDeductionHistory()" class="bg-gradient-to-r from-yellow-400 to-yellow-500 text-white py-3 px-4 rounded-xl font-medium text-sm hover:shadow-lg transition-all duration-300 transform hover:scale-105">
+                    🧾 扣减历史
+                </button>
+                <button onclick="showChangePassword()" class="bg-gradient-to-r from-purple-400 to-purple-500 text-white py-3 px-4 rounded-xl font-medium text-sm hover:shadow-lg transition-all duration-300 transform hover:scale-105">
+                    🔐 修改密码
+                </button>
+                <button onclick="showResetModal()" class="bg-gradient-to-r from-gray-400 to-gray-500 text-white py-3 px-4 rounded-xl font-medium text-sm hover:shadow-lg transition-all duration-300 transform hover:scale-105">
+                    ♻️ 重置数据
+                </button>
+                <button onclick="showAchievementsAdmin()" class="bg-gradient-to-r from-green-400 to-green-500 text-white py-3 px-4 rounded-xl font-medium text-sm hover:shadow-lg transition-all duration-300 transform hover:scale-105">
+                    🏅 成就管理
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Management -->
+    <div class="px-4 mb-6">
+        <div class="bg-white rounded-2xl p-4 card-shadow">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">任务管理</h3>
+                <select id="taskFilter" class="text-sm border border-gray-300 rounded-lg px-3 py-1" onchange="filterTasks()">
+                    <option value="all">全部任务</option>
+                    <option value="pending">待完成</option>
+                    <option value="completed">已完成</option>
+                    <option value="review">待审核</option>
+                </select>
+            </div>
+            
+            <!-- Task List -->
+            <div id="taskList" class="space-y-3">
+                <!-- Tasks will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Wish Review Section -->
+    <div class="px-4 mb-6">
+        <div class="bg-white rounded-2xl p-4 card-shadow">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">心愿审核</h3>
+                <span class="text-sm text-gray-500" id="pendingWishesCount">0 个待审核</span>
+            </div>
+            
+            <!-- Wish Review List -->
+            <div id="wishReviewList" class="space-y-3">
+                <!-- Wishes will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Chart -->
+    <div class="px-4 mb-6">
+        <div class="bg-white rounded-2xl p-4 card-shadow">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">完成统计</h3>
+            <div id="progressChart" style="height: 200px;"></div>
+        </div>
+    </div>
+
+    <!-- Achievements Admin Section -->
+    <div id="achievementsAdminSection" class="px-4 mb-6">
+        <div class="bg-white rounded-2xl p-4 card-shadow">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">成就管理</h3>
+            <form id="addAchievementForm" class="space-y-3 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">成就名称</label>
+                    <input type="text" id="achievementName" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">成就描述</label>
+                    <textarea id="achievementDescription" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" rows="2"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">成就类型</label>
+                    <select id="achievementCategory" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        <option value="task">任务类</option>
+                        <option value="points">积分类</option>
+                        <option value="wish">心愿类</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">完成要求</label>
+                        <input type="number" id="achievementRequirement" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="1" min="1" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">奖励积分</label>
+                        <input type="number" id="achievementPoints" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="10" min="1" required>
+                    </div>
+                </div>
+                <button type="button" onclick="saveAchievementDefinition()" class="w-full bg-green-500 text-white py-2 px-4 rounded-lg text-sm">添加成就</button>
+            </form>
+            <div id="achievementAdminList" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <!-- Create Task Modal -->
+    <div id="createTaskModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md card-shadow">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">创建新任务</h3>
+            <form id="createTaskForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">任务名称</label>
+                    <input type="text" id="taskName" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="例如：整理房间" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">任务描述</label>
+                    <textarea id="taskDescription" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" rows="3" placeholder="详细描述任务要求"></textarea>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">积分奖励</label>
+                    <input type="number" id="taskPoints" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="1" min="1" max="200" required>
+                    <div class="text-xs text-gray-500 mt-1" id="pointsRuleHint"></div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">难度等级</label>
+                    <select id="taskDifficulty" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        <option value="1">⭐ 简单</option>
+                        <option value="2">⭐⭐ 一般</option>
+                        <option value="3">⭐⭐⭐ 困难</option>
+                        <option value="4">⭐⭐⭐⭐ 挑战</option>
+                        <option value="5">⭐⭐⭐⭐⭐ 超级挑战</option>
+                    </select>
+                </div>
+                <div class="flex space-x-3">
+                    <button type="button" onclick="hideCreateTask()" class="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium text-sm">取消</button>
+                    <button type="submit" class="flex-1 bg-gradient-to-r from-pink-400 to-pink-500 text-white py-2 px-4 rounded-lg font-medium text-sm">创建任务</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Review Task Modal -->
+    <div id="reviewTaskModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md card-shadow">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">审核任务</h3>
+            <div id="reviewTaskContent">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+            <div class="flex space-x-3 mt-4">
+                <button onclick="rejectTask()" class="flex-1 bg-red-500 text-white py-2 px-4 rounded-lg font-medium text-sm">驳回</button>
+                <button onclick="approveTask()" class="flex-1 bg-green-500 text-white py-2 px-4 rounded-lg font-medium text-sm">批准</button>
+            </div>
+            <button onclick="hideReviewTask()" class="w-full mt-2 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium text-sm">取消</button>
+        </div>
+    </div>
+
+    <!-- Review Wish Modal -->
+    <div id="reviewWishModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md card-shadow">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">审核心愿</h3>
+            <div id="reviewWishContent">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">设定所需积分</label>
+                <input type="number" id="wishPointsInput" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="100" min="10" max="1000">
+            </div>
+            <div class="flex space-x-3 mt-4">
+                <button onclick="rejectWish()" class="flex-1 bg-red-500 text-white py-2 px-4 rounded-lg font-medium text-sm">驳回</button>
+                <button onclick="approveWish()" class="flex-1 bg-green-500 text-white py-2 px-4 rounded-lg font-medium text-sm">批准并设定积分</button>
+            </div>
+            <button onclick="hideReviewWish()" class="w-full mt-2 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium text-sm">取消</button>
+        </div>
+    </div>
+
+    <!-- Deduct Points Modal -->
+    <div id="deductPointsModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md card-shadow">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">扣减积分</h3>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">扣减原因</label>
+                <input type="text" id="deductReason" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="请输入扣减积分的原因" required>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">扣减积分</label>
+                <input type="number" id="deductPoints" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="10" min="1" max="100" required>
+            </div>
+            
+            <div class="flex space-x-3 mt-4">
+                <button onclick="hideDeductPoints()" class="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium text-sm">取消</button>
+                <button onclick="confirmDeductPoints()" class="flex-1 bg-red-500 text-white py-2 px-4 rounded-lg font-medium text-sm">确认扣减</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="deductionHistoryModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md card-shadow">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">扣减历史</h3>
+            <div id="deductionList" class="space-y-3"></div>
+            <div class="flex space-x-3 mt-4">
+                <button onclick="undoLastDeduction()" class="flex-1 bg-yellow-500 text-white py-2 px-4 rounded-lg font-medium text-sm">撤销最近一次</button>
+                <button onclick="hideDeductionHistory()" class="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium text-sm">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="achievementsAdminModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md card-shadow">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">成就管理</h3>
+            <form id="addAchievementForm" class="space-y-3 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">成就名称</label>
+                    <input type="text" id="achievementName" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">成就描述</label>
+                    <textarea id="achievementDescription" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" rows="2"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">成就类型</label>
+                    <select id="achievementCategory" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        <option value="task">任务类</option>
+                        <option value="points">积分类</option>
+                        <option value="wish">心愿类</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">完成要求</label>
+                        <input type="number" id="achievementRequirement" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="1" min="1" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">奖励积分</label>
+                        <input type="number" id="achievementPoints" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="10" min="1" required>
+                    </div>
+                </div>
+                <button type="button" onclick="saveAchievementDefinition()" class="w-full bg-green-500 text-white py-2 px-4 rounded-lg text-sm">添加成就</button>
+            </form>
+            <div id="achievementAdminList" class="space-y-3"></div>
+            <div class="flex space-x-3 mt-4">
+                <button onclick="hideAchievementsAdmin()" class="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium text-sm">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Data Modal -->
+    <div id="resetDataModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md card-shadow">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">重置数据</h3>
+            <p class="text-xs text-gray-600 mb-3">请输入家长密码以确认重置。重置将清空任务、心愿与积分记录。</p>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">家长密码</label>
+                <input type="password" id="resetPassword" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="请输入家长密码">
+            </div>
+            <div class="flex space-x-3">
+                <button onclick="hideResetModal()" class="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium text-sm">取消</button>
+                <button onclick="confirmReset()" class="flex-1 bg-red-500 text-white py-2 px-4 rounded-lg font-medium text-sm">确认重置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="changePasswordModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md card-shadow">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">修改家长密码</h3>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">当前密码</label>
+                <input type="password" id="currentPassword" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="请输入当前密码" required>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">新密码</label>
+                <input type="password" id="newPassword" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="请输入新密码" required>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">确认新密码</label>
+                <input type="password" id="confirmPassword" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="请再次输入新密码" required>
+            </div>
+            
+            <div class="flex space-x-3 mt-4">
+                <button onclick="hideChangePassword()" class="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium text-sm">取消</button>
+                <button onclick="confirmChangePassword()" class="flex-1 bg-blue-500 text-white py-2 px-4 rounded-lg font-medium text-sm">确认修改</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
+        <div class="flex justify-around py-2">
+            <a href="index.html" class="flex flex-col items-center py-2 px-4 text-pink-500">
+                <div class="text-xl mb-1">📋</div>
+                <span class="text-xs font-medium">任务管理</span>
+            </a>
+            <a href="child-view.html" onclick="switchToChildView(); return false;" class="flex flex-col items-center py-2 px-4 text-gray-400">
+                <div class="text-xl mb-1">👶</div>
+                <span class="text-xs">孩子视角</span>
+            </a>
+            <a href="wishes.html" class="flex flex-col items-center py-2 px-4 text-gray-400">
+                <div class="text-xl mb-1">🌟</div>
+                <span class="text-xs">心愿管理</span>
+            </a>
+            <a href="rewards.html" class="flex flex-col items-center py-2 px-4 text-gray-400">
+                <div class="text-xl mb-1">🏆</div>
+                <span class="text-xs">成就统计</span>
+            </a>
+            <a href="help.html" class="flex flex-col items-center py-2 px-4 text-gray-400">
+                <div class="text-xl mb-1">❓</div>
+                <span class="text-xs">帮助</span>
+            </a>
+            <a href="login.html" class="flex flex-col items-center py-2 px-4 text-gray-400">
+                <div class="text-xl mb-1">🚪</div>
+                <span class="text-xs">切换角色</span>
+            </a>
+        </div>
+    </nav>
+
+    <script>
+        let selectedRole = null;
+        function showRoleSelectModal(){
+            const modal = document.getElementById('roleSelectModal');
+            modal.classList.remove('hidden');
+        }
+        function hideRoleSelectModal(){
+            const modal = document.getElementById('roleSelectModal');
+            modal.classList.add('hidden');
+        }
+        function selectRole(role){
+            selectedRole = role;
+            if(role==='parent'){
+                localStorage.setItem('userRole','parent');
+                localStorage.setItem('loginTime', new Date().toISOString());
+                hideRoleSelectModal();
+            }else{
+                localStorage.setItem('userRole','child');
+                localStorage.setItem('loginTime', new Date().toISOString());
+                window.location.href = 'child-view.html';
+            }
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            const userRole = localStorage.getItem('userRole');
+            const loginTime = localStorage.getItem('loginTime');
+            if (!userRole || !loginTime) {
+                showRoleSelectModal();
+                return;
+            }
+            const loginDate = new Date(loginTime);
+            const now = new Date();
+            const hoursDiff = (now - loginDate) / (1000 * 60 * 60);
+            if (hoursDiff > 24) {
+                localStorage.clear();
+                showRoleSelectModal();
+                return;
+            }
+            if (userRole !== 'parent') {
+                if (userRole === 'child') {
+                    window.location.href = 'child-view.html';
+                } else {
+                    showRoleSelectModal();
+                }
+                return;
+            }
+        });
+    </script>
+    <script src="main.js"></script>
+    <div id="roleSelectModal" class="fixed inset-0 bg黑 bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md card-shadow">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">选择角色</h3>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <button onclick="selectRole('parent')" class="bg-gradient-to-r from-blue-400 to-blue-500 text-white py-3 px-4 rounded-xl font-medium text-sm">家长</button>
+                <button onclick="selectRole('child')" class="bg-gradient-to-r from-pink-400 to-pink-500 text-white py-3 px-4 rounded-xl font-medium text-sm">孩子</button>
+            </div>
+            <div class="flex space-x-3">
+                <button onclick="hideRoleSelectModal()" class="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium text-sm">关闭</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

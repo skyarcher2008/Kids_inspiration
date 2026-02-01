@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>奖励详情</title>
+    <style>
+      body { margin: 0; font-family: "Noto Sans SC", system-ui, -apple-system, Segoe UI, sans-serif; background: #f8fafc; }
+      .bar { padding: 12px 16px; background: white; border-bottom: 1px solid #e2e8f0; display: flex; gap: 12px; align-items: center; }
+      .btn { padding: 6px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f1f5f9; cursor: pointer; }
+      .hint { color: #64748b; font-size: 12px; }
+      iframe { width: 100%; height: calc(100vh - 54px); border: 0; background: white; }
+      .error { padding: 24px; color: #ef4444; }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <button class="btn" onclick="history.back()">返回</button>
+      <div class="hint" id="fileName">加载中…</div>
+    </div>
+    <iframe id="frame" sandbox="allow-same-origin allow-forms allow-scripts"></iframe>
+    <script>
+      const params = new URLSearchParams(location.search);
+      const file = params.get('file');
+      const fileNameEl = document.getElementById('fileName');
+      const frame = document.getElementById('frame');
+
+      if (!file) {
+        frame.replaceWith(Object.assign(document.createElement('div'), { className: 'error', textContent: '未指定文件。' }));
+      } else {
+        fileNameEl.textContent = decodeURIComponent(file);
+        fetch('/' + file)
+          .then(res => res.text())
+          .then(text => {
+            const html = extractHtmlFromMhtml(text);
+            if (!html) {
+              throw new Error('无法解析该文件');
+            }
+            frame.srcdoc = html;
+          })
+          .catch(() => {
+            frame.replaceWith(Object.assign(document.createElement('div'), { className: 'error', textContent: '内容解析失败，请确认文件存在或格式正确。' }));
+          });
+      }
+
+      function extractHtmlFromMhtml(mhtmlText) {
+        const boundaryMatch = mhtmlText.match(/boundary="([^"]+)"/i);
+        if (!boundaryMatch) return null;
+        const boundary = boundaryMatch[1];
+        const parts = mhtmlText.split(`--${boundary}`);
+        for (const part of parts) {
+          if (!/Content-Type:\s*text\/html/i.test(part)) continue;
+          const splitIndex = part.search(/\r?\n\r?\n/);
+          if (splitIndex < 0) continue;
+          const headers = part.slice(0, splitIndex);
+          let body = part.slice(splitIndex + (part[splitIndex] === '\r' ? 4 : 2));
+          if (/quoted-printable/i.test(headers)) {
+            body = decodeQuotedPrintable(body);
+          }
+          return body.trim();
+        }
+        return null;
+      }
+
+      function decodeQuotedPrintable(input) {
+        const softBreakRemoved = input.replace(/=\r?\n/g, '');
+        const bytes = [];
+        for (let i = 0; i < softBreakRemoved.length; i++) {
+          const ch = softBreakRemoved[i];
+          if (ch === '=' && /[0-9A-Fa-f]{2}/.test(softBreakRemoved.slice(i + 1, i + 3))) {
+            bytes.push(parseInt(softBreakRemoved.slice(i + 1, i + 3), 16));
+            i += 2;
+          } else {
+            bytes.push(ch.charCodeAt(0));
+          }
+        }
+        return new TextDecoder('utf-8').decode(new Uint8Array(bytes));
+      }
+    </script>
+  </body>
+</html>

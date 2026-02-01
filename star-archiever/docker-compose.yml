@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  learning-garden:
+    build: .
+    container_name: learning-garden
+    ports:
+      - "8080:80"
+    restart: unless-stopped
