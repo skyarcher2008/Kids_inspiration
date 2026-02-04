@@ -13,12 +13,14 @@ interface AchievementsViewProps {
   bestStreak: number;
   envelopesOpened: number;
   luckValue: number;
-  envelopeInterval: number;
-  onSetEnvelopeInterval: (value: number) => void;
   userName: string;
   onSetUserName: (name: string) => void;
   onExport: () => string;
   onImport: (content: string) => Promise<boolean> | boolean;
+  onRestoreBackup: () => void;
+  backupUpdatedAt: string;
+  notificationUrl: string;
+  onSetNotificationUrl: (url: string) => void;
   onReset: () => void;
 }
 
@@ -32,12 +34,14 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({
   bestStreak,
   envelopesOpened,
   luckValue,
-  envelopeInterval,
-  onSetEnvelopeInterval,
   userName,
   onSetUserName,
   onExport,
   onImport,
+  onRestoreBackup,
+  backupUpdatedAt,
+  notificationUrl,
+  onSetNotificationUrl,
   onReset
 }) => {
   const [nameInput, setNameInput] = useState(userName);
@@ -122,18 +126,19 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({
           </button>
         </div>
 
-        <div className="text-sm text-slate-500 font-bold mb-2">红包触发设置</div>
-        <div className="flex items-center gap-3 mb-6">
-          <input
-            type="number"
-            min={1}
-            max={20}
-            value={envelopeInterval}
-            onChange={(e) => onSetEnvelopeInterval(Number(e.target.value))}
-            className="w-24 bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-slate-700"
-          />
-          <span className="text-sm text-slate-400">每完成 N 道题弹出红包</span>
+        <div className="text-sm text-slate-500 font-bold mb-2">红包触发说明</div>
+        <div className="text-sm text-slate-400 mb-6">
+          数学 5 题开红包，单词与语法 10 题开红包。
         </div>
+
+        <div className="text-sm text-slate-500 font-bold mb-2">兑换通知设置</div>
+        <div className="text-sm text-slate-400 mb-2">填写 Webhook 地址，可接入微信/短信/邮件服务。</div>
+        <input
+          value={notificationUrl}
+          onChange={(e) => onSetNotificationUrl(e.target.value)}
+          placeholder="例如：https://www.pushplus.plus/send?token=你的TOKEN&title=兑换通知"
+          className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-slate-700 mb-6"
+        />
 
         <div className="flex flex-wrap gap-3">
           <button
@@ -157,12 +162,23 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({
             />
           </label>
           <button
+            onClick={onRestoreBackup}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 text-amber-600"
+          >
+            从本地备份恢复
+          </button>
+          <button
             onClick={onReset}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-50 text-rose-500"
           >
             重置数据
           </button>
         </div>
+        {backupUpdatedAt && (
+          <div className="mt-3 text-xs text-slate-400">
+            最近一次自动备份：{new Date(backupUpdatedAt).toLocaleString()}
+          </div>
+        )}
       </div>
     </div>
   );

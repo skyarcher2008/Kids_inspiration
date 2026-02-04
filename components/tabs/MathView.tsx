@@ -58,7 +58,7 @@ export const MathView: React.FC<MathViewProps> = ({
           <span className="bg-sky-100 p-2 rounded-xl mr-3 shadow-sm"><Calculator className="text-sky-500 w-5 h-5" /></span>
           数学口算闯关
         </h2>
-        <p className="text-xs text-slate-400 mt-1 ml-12">答对一题 +10 分，连对还有加成哦！时间题可以输入 12:30 或 1230。</p>
+        <p className="text-xs text-slate-400 mt-1 ml-12">答对一题 +20 分，连对 3 题有奖励，每天前 10 题双倍积分。时间题可以输入 12:30 或 1230。</p>
       </div>
 
       <div className="px-4 mb-4 text-sm text-slate-500">

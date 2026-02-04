@@ -46,6 +46,13 @@ export const WordsView: React.FC<WordsViewProps> = ({ words, onAnswer, onReveal,
     return words.filter(word => word.nextReview <= now);
   }, [words]);
 
+  const learningCount = useMemo(() => words.filter(word => word.stage > 0 && word.familiarity !== 'known').length, [words]);
+  const notStartedCount = useMemo(
+    () => words.filter(word => word.stage === 0 && !word.lastReview && word.correctCount === 0 && word.wrongCount === 0).length,
+    [words]
+  );
+  const completedCount = useMemo(() => words.filter(word => word.familiarity === 'known').length, [words]);
+
   const currentWord = dueWords[0] || words[0];
   const masked = useMemo(() => {
     if (!currentWord) return '';
@@ -152,6 +159,7 @@ export const WordsView: React.FC<WordsViewProps> = ({ words, onAnswer, onReveal,
           英语单词记忆
         </h2>
         <p className="text-xs text-slate-400 mt-1 ml-12">艾宾浩斯记忆曲线安排复习时间</p>
+        <p className="text-xs text-slate-400 mt-1 ml-12">答对一题 +10 分，连对 5 题有奖励，每天前 10 题双倍积分。</p>
       </div>
 
       <div className="px-4 flex gap-2 mb-4 flex-wrap">
@@ -277,14 +285,22 @@ export const WordsView: React.FC<WordsViewProps> = ({ words, onAnswer, onReveal,
         </div>
       )}
 
-      <div className="px-4 mt-6 grid grid-cols-2 gap-3">
+      <div className="px-4 mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
+          <div className="text-xs text-slate-400 font-bold">学习中</div>
+          <div className="text-2xl font-cute text-amber-500">{learningCount}</div>
+        </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
           <div className="text-xs text-slate-400 font-bold">待复习</div>
           <div className="text-2xl font-cute text-emerald-500">{dueWords.length}</div>
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
-          <div className="text-xs text-slate-400 font-bold">总词数</div>
-          <div className="text-2xl font-cute text-slate-600">{words.length}</div>
+          <div className="text-xs text-slate-400 font-bold">未开始</div>
+          <div className="text-2xl font-cute text-slate-600">{notStartedCount}</div>
+        </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
+          <div className="text-xs text-slate-400 font-bold">已完成</div>
+          <div className="text-2xl font-cute text-slate-600">{completedCount}</div>
         </div>
       </div>
     </div>

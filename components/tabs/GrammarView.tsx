@@ -42,6 +42,7 @@ export const GrammarView: React.FC<GrammarViewProps> = ({ questions, onAnswer, o
           英语语法训练
         </h2>
         <p className="text-xs text-slate-400 mt-1 ml-12">选择正确答案，系统会给出解析</p>
+        <p className="text-xs text-slate-400 mt-1 ml-12">答对一题 +15 分，连对 5 题有奖励，每天前 10 题双倍积分。</p>
       </div>
 
       <div className="px-4 flex gap-2 mb-4 flex-wrap">

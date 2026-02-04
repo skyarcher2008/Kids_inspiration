@@ -7,8 +7,7 @@ import {
   INITIAL_REWARDS,
   INITIAL_ACHIEVEMENTS,
   DEFAULT_WORDS,
-  DEFAULT_GRAMMAR_QUESTIONS,
-  DEFAULT_ENVELOPE_INTERVAL
+  DEFAULT_GRAMMAR_QUESTIONS
 } from '../../constants';
 import { LEARNING_CONFIG } from '../../config/learningConfig';
 import { Achievement, GrammarQuestion, MathDifficulty, MathQuestion, Reward, Transaction, WordItem } from '../../types';
@@ -18,6 +17,27 @@ import { ToastType } from '../../components/Toast';
 GlobalWorkerOptions.workerSrc = pdfWorker;
 
 type ActiveTab = 'math' | 'words' | 'grammar' | 'rewards' | 'achievements';
+type LearningSource = 'math' | 'word' | 'grammar';
+
+interface SubjectStats {
+  totalAnswered: number;
+  totalCorrect: number;
+  consecutiveCorrect: number;
+  bestStreak: number;
+  questionsSinceEnvelope: number;
+  dailyAnsweredCount: number;
+  dailyDateKey: string;
+  lastSignInDate: string;
+  signInStreak: number;
+}
+
+const SOURCE_CONFIG: Record<LearningSource, { basePoints: number; streakRewardInterval: number; envelopeInterval: number; dailyDoubleLimit: number; label: string }> = {
+  math: { basePoints: 20, streakRewardInterval: 3, envelopeInterval: 5, dailyDoubleLimit: 10, label: '口算' },
+  word: { basePoints: 10, streakRewardInterval: 5, envelopeInterval: 10, dailyDoubleLimit: 10, label: '单词' },
+  grammar: { basePoints: 15, streakRewardInterval: 5, envelopeInterval: 10, dailyDoubleLimit: 10, label: '语法' }
+};
+
+const SIGN_IN_REWARDS = [20, 40, 60, 80, 100];
 
 const REVIEW_INTERVALS = [
   5 * 60 * 1000,
@@ -36,6 +56,54 @@ const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max 
 const pickOne = <T,>(list: T[]) => list[Math.floor(Math.random() * list.length)];
 
 const formatTwoDigits = (num: number) => num.toString().padStart(2, '0');
+
+const getDateKey = (date = new Date()) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const parseDateKey = (value: string) => {
+  const [y, m, d] = value.split('-').map(part => Number(part));
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+};
+
+const isYesterday = (lastKey: string, todayKey: string) => {
+  const lastDate = parseDateKey(lastKey);
+  const todayDate = parseDateKey(todayKey);
+  if (!lastDate || !todayDate) return false;
+  const diff = todayDate.getTime() - lastDate.getTime();
+  return diff >= 1000 * 60 * 60 * 24 && diff < 1000 * 60 * 60 * 48;
+};
+
+const getSignInReward = (streak: number) => {
+  if (streak >= 5) return 100;
+  return SIGN_IN_REWARDS[Math.max(0, streak - 1)] || 100;
+};
+
+const buildEmptySubjectStats = (todayKey: string): SubjectStats => ({
+  totalAnswered: 0,
+  totalCorrect: 0,
+  consecutiveCorrect: 0,
+  bestStreak: 0,
+  questionsSinceEnvelope: 0,
+  dailyAnsweredCount: 0,
+  dailyDateKey: todayKey,
+  lastSignInDate: '',
+  signInStreak: 0
+});
+
+const normalizeSubjectStats = (raw: Partial<Record<LearningSource, Partial<SubjectStats>>> | undefined, todayKey: string) => {
+  const empty = buildEmptySubjectStats(todayKey);
+  const merge = (value?: Partial<SubjectStats>) => ({ ...empty, ...(value || {}) });
+  return {
+    math: merge(raw?.math),
+    word: merge(raw?.word),
+    grammar: merge(raw?.grammar)
+  } as Record<LearningSource, SubjectStats>;
+};
 
 const pickWeighted = (weights: { mul: number; div: number; mix: number }) => {
   const total = weights.mul + weights.div + weights.mix;
@@ -135,6 +203,8 @@ const decodeTextWithFallback = (buffer: ArrayBuffer) => {
 };
 
 export const useLearningAppLogic = () => {
+  const BACKUP_KEY = 'app_backup';
+  const BACKUP_TIME_KEY = 'app_backup_time';
   const [activeTab, setActiveTab] = useState<ActiveTab>('math');
   const [userName, setUserName] = useState(() => localStorage.getItem('app_username') || '');
   const [themeKey, setThemeKey] = useState<ThemeKey>(() => (localStorage.getItem('app_theme') as ThemeKey) || 'lemon');
@@ -144,10 +214,22 @@ export const useLearningAppLogic = () => {
   const [totalCorrect, setTotalCorrect] = useState<number>(() => parseInt(localStorage.getItem('app_total_correct') || '0', 10));
   const [consecutiveCorrect, setConsecutiveCorrect] = useState<number>(() => parseInt(localStorage.getItem('app_streak') || '0', 10));
   const [bestStreak, setBestStreak] = useState<number>(() => parseInt(localStorage.getItem('app_best_streak') || '0', 10));
-  const [questionsSinceEnvelope, setQuestionsSinceEnvelope] = useState<number>(() => parseInt(localStorage.getItem('app_q_since_env') || '0', 10));
-  const [envelopeInterval, setEnvelopeInterval] = useState<number>(() => parseInt(localStorage.getItem('app_envelope_interval') || String(DEFAULT_ENVELOPE_INTERVAL), 10));
   const [envelopesOpened, setEnvelopesOpened] = useState<number>(() => parseInt(localStorage.getItem('app_envelopes_opened') || '0', 10));
-  const [pendingEnvelope, setPendingEnvelope] = useState<null | { points: number; luck: number }>(null);
+  const [pendingEnvelope, setPendingEnvelope] = useState<null | { points: number; luck?: number; kind?: 'normal' | 'signin'; sourceLabel?: string; signInDay?: number }>(null);
+
+  const [subjectStats, setSubjectStats] = useState<Record<LearningSource, SubjectStats>>(() => {
+    const saved = localStorage.getItem('app_subject_stats');
+    const todayKey = getDateKey();
+    if (saved) {
+      try {
+        const raw = JSON.parse(saved) as Partial<Record<LearningSource, Partial<SubjectStats>>>;
+        return normalizeSubjectStats(raw, todayKey);
+      } catch {
+        // fallthrough
+      }
+    }
+    return normalizeSubjectStats(undefined, todayKey);
+  });
 
   const [rewards, setRewards] = useState<Reward[]>(() => {
     const saved = localStorage.getItem('app_rewards');
@@ -211,6 +293,9 @@ export const useLearningAppLogic = () => {
     type: 'success'
   });
 
+  const [backupUpdatedAt, setBackupUpdatedAt] = useState<string>(() => localStorage.getItem(BACKUP_TIME_KEY) || '');
+  const [notificationUrl, setNotificationUrl] = useState<string>(() => localStorage.getItem('app_notification_url') || '');
+
   useEffect(() => localStorage.setItem('app_username', userName), [userName]);
   useEffect(() => localStorage.setItem('app_theme', themeKey), [themeKey]);
   useEffect(() => localStorage.setItem('app_points', points.toString()), [points]);
@@ -218,15 +303,16 @@ export const useLearningAppLogic = () => {
   useEffect(() => localStorage.setItem('app_total_correct', totalCorrect.toString()), [totalCorrect]);
   useEffect(() => localStorage.setItem('app_streak', consecutiveCorrect.toString()), [consecutiveCorrect]);
   useEffect(() => localStorage.setItem('app_best_streak', bestStreak.toString()), [bestStreak]);
-  useEffect(() => localStorage.setItem('app_q_since_env', questionsSinceEnvelope.toString()), [questionsSinceEnvelope]);
-  useEffect(() => localStorage.setItem('app_envelope_interval', envelopeInterval.toString()), [envelopeInterval]);
   useEffect(() => localStorage.setItem('app_envelopes_opened', envelopesOpened.toString()), [envelopesOpened]);
+  useEffect(() => localStorage.setItem('app_subject_stats', JSON.stringify(subjectStats)), [subjectStats]);
   useEffect(() => localStorage.setItem('app_rewards', JSON.stringify(rewards)), [rewards]);
   useEffect(() => localStorage.setItem('app_achievements', JSON.stringify(achievements)), [achievements]);
   useEffect(() => localStorage.setItem('app_words', JSON.stringify(words)), [words]);
   useEffect(() => localStorage.setItem('app_grammar', JSON.stringify(grammarQuestions)), [grammarQuestions]);
   useEffect(() => localStorage.setItem('app_transactions', JSON.stringify(transactions)), [transactions]);
   useEffect(() => localStorage.setItem('app_math_difficulty', mathDifficulty), [mathDifficulty]);
+  useEffect(() => localStorage.setItem('app_backup_time', backupUpdatedAt), [backupUpdatedAt]);
+  useEffect(() => localStorage.setItem('app_notification_url', notificationUrl), [notificationUrl]);
 
   const showToast = useCallback((message: string, type: ToastType = 'success') => {
     setToast({ show: true, message, type });
@@ -312,7 +398,20 @@ export const useLearningAppLogic = () => {
     setTransactions(prev => [newTx, ...prev]);
   };
 
-  const applyAnswerResult = (isCorrect: boolean, source: 'math' | 'word' | 'grammar', extraLabel?: string) => {
+  const sendRedeemNotification = async (reward: Reward, nextBalance: number) => {
+    if (!notificationUrl) return;
+    const timestamp = new Date().toLocaleString();
+    const content = `小朋友兑换奖励：${reward.title}（${reward.cost} 分）\n剩余积分：${nextBalance}\n时间：${timestamp}`;
+    try {
+      const separator = notificationUrl.includes('?') ? '&' : '?';
+      const url = `${notificationUrl}${separator}content=${encodeURIComponent(content)}`;
+      await fetch(url, { mode: 'no-cors' });
+    } catch (error) {
+      console.error('通知发送失败', error);
+    }
+  };
+
+  const applyAnswerResult = (isCorrect: boolean, source: LearningSource, extraLabel?: string) => {
     const nextTotalAnswered = totalAnswered + 1;
     const nextTotalCorrect = isCorrect ? totalCorrect + 1 : totalCorrect;
     const nextStreak = isCorrect ? consecutiveCorrect + 1 : 0;
@@ -322,12 +421,34 @@ export const useLearningAppLogic = () => {
     setConsecutiveCorrect(nextStreak);
     setBestStreak(nextBestStreak);
 
+    const config = SOURCE_CONFIG[source];
+    const todayKey = getDateKey();
+    const currentStats = subjectStats[source];
+    const currentDailyCount = currentStats.dailyDateKey === todayKey ? currentStats.dailyAnsweredCount : 0;
+    const nextDailyCount = currentDailyCount + 1;
+
+    const nextSubjectTotalAnswered = currentStats.totalAnswered + 1;
+    const nextSubjectTotalCorrect = isCorrect ? currentStats.totalCorrect + 1 : currentStats.totalCorrect;
+    const nextSubjectStreak = isCorrect ? currentStats.consecutiveCorrect + 1 : 0;
+    const nextSubjectBestStreak = Math.max(currentStats.bestStreak, nextSubjectStreak);
+
+    let nextQuestionsSinceEnvelope = currentStats.questionsSinceEnvelope + 1;
+    const isDouble = nextDailyCount <= config.dailyDoubleLimit;
+
     let bonus = 0;
+    if (isCorrect && nextSubjectStreak > 0 && nextSubjectStreak % config.streakRewardInterval === 0) {
+      bonus = 5;
+    }
+
+    const baseGain = config.basePoints + bonus;
+    const totalGain = isCorrect ? baseGain * (isDouble ? 2 : 1) : 0;
+
     if (isCorrect) {
-      if (nextStreak % 10 === 0) bonus += 15;
-      else if (nextStreak % 5 === 0) bonus += 5;
-      const totalGain = 10 + bonus;
-      addPoints(totalGain, `${source}答题 +${totalGain}${extraLabel ? `（${extraLabel}）` : ''}`);
+      const labels = [] as string[];
+      if (bonus > 0) labels.push('连对奖励');
+      if (isDouble) labels.push('双倍积分（每日前十题）');
+      if (extraLabel && !labels.includes(extraLabel)) labels.push(extraLabel);
+      addPoints(totalGain, `${config.label}答题 +${totalGain}${labels.length ? `（${labels.join('，')}）` : ''}`);
       const nextPoints = points + totalGain;
       updateAchievements(nextPoints, nextTotalCorrect, nextStreak, envelopesOpened);
       setShowCelebration({ show: true, points: totalGain, type: 'success' });
@@ -346,19 +467,57 @@ export const useLearningAppLogic = () => {
 
     setTimeout(() => setShowCelebration(prev => ({ ...prev, show: false })), 1200);
 
-    const nextSince = questionsSinceEnvelope + 1;
-    if (nextSince >= envelopeInterval) {
-      const reward = getEnvelopeReward(nextTotalAnswered);
-      setPendingEnvelope(reward);
-      setQuestionsSinceEnvelope(0);
-    } else {
-      setQuestionsSinceEnvelope(nextSince);
+    let nextSignInStreak = currentStats.signInStreak;
+    let nextLastSignInDate = currentStats.lastSignInDate;
+    const shouldSignIn = currentStats.lastSignInDate !== todayKey;
+    if (shouldSignIn) {
+      nextSignInStreak = currentStats.lastSignInDate && isYesterday(currentStats.lastSignInDate, todayKey)
+        ? currentStats.signInStreak + 1
+        : 1;
+      nextLastSignInDate = todayKey;
     }
+
+    const canOpenEnvelope = !pendingEnvelope;
+    if (canOpenEnvelope && shouldSignIn) {
+      const rewardPoints = getSignInReward(nextSignInStreak);
+      setPendingEnvelope({
+        points: rewardPoints,
+        kind: 'signin',
+        sourceLabel: config.label,
+        signInDay: nextSignInStreak
+      });
+    } else if (canOpenEnvelope && nextQuestionsSinceEnvelope >= config.envelopeInterval) {
+      const reward = getEnvelopeReward(nextSubjectTotalAnswered);
+      setPendingEnvelope({
+        points: reward.points,
+        luck: reward.luck,
+        kind: 'normal',
+        sourceLabel: config.label
+      });
+      nextQuestionsSinceEnvelope = 0;
+    }
+
+    setSubjectStats(prev => ({
+      ...prev,
+      [source]: {
+        ...currentStats,
+        totalAnswered: nextSubjectTotalAnswered,
+        totalCorrect: nextSubjectTotalCorrect,
+        consecutiveCorrect: nextSubjectStreak,
+        bestStreak: nextSubjectBestStreak,
+        questionsSinceEnvelope: nextQuestionsSinceEnvelope,
+        dailyAnsweredCount: nextDailyCount,
+        dailyDateKey: todayKey,
+        lastSignInDate: nextLastSignInDate,
+        signInStreak: nextSignInStreak
+      }
+    }));
   };
 
   const claimEnvelope = () => {
     if (!pendingEnvelope) return;
-    addPoints(pendingEnvelope.points, '红包奖励');
+    const envelopeLabel = pendingEnvelope.kind === 'signin' ? '签到红包' : '红包奖励';
+    addPoints(pendingEnvelope.points, envelopeLabel);
     const nextEnvelopes = envelopesOpened + 1;
     setEnvelopesOpened(nextEnvelopes);
     updateAchievements(points + pendingEnvelope.points, totalCorrect, consecutiveCorrect, nextEnvelopes);
@@ -370,7 +529,7 @@ export const useLearningAppLogic = () => {
       origin: { y: 0.6 },
       colors: ['#FB7185', '#F97316', '#F59E0B']
     });
-    showToast(`红包奖励 +${pendingEnvelope.points} 分！`, 'success');
+    showToast(`${envelopeLabel} +${pendingEnvelope.points} 分！`, 'success');
   };
 
   const createNewMathQuestion = (difficulty = mathDifficulty) => {
@@ -399,6 +558,8 @@ export const useLearningAppLogic = () => {
   const redeemReward = (reward: Reward) => {
     if (points >= reward.cost) {
       spendPoints(reward.cost, `兑换: ${reward.title}`);
+      const nextBalance = points - reward.cost;
+      sendRedeemNotification(reward, nextBalance);
       safeConfetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors: ['#60A5FA', '#34D399', '#FCD34D'] });
       showToast(`成功兑换：${reward.title}`, 'success');
     } else {
@@ -575,16 +736,51 @@ export const useLearningAppLogic = () => {
       totalCorrect,
       consecutiveCorrect,
       bestStreak,
-      questionsSinceEnvelope,
-      envelopeInterval,
       envelopesOpened,
+      subjectStats,
       rewards,
       achievements,
       words,
       grammarQuestions,
-      transactions
+      transactions,
+      notificationUrl
     });
   };
+
+  const createBackup = useCallback(() => {
+    const payload = exportData();
+    localStorage.setItem(BACKUP_KEY, payload);
+    const timestamp = new Date().toISOString();
+    localStorage.setItem(BACKUP_TIME_KEY, timestamp);
+    setBackupUpdatedAt(timestamp);
+  }, [exportData]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        createBackup();
+      } catch {
+        // ignore backup errors
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [
+    userName,
+    themeKey,
+    points,
+    totalAnswered,
+    totalCorrect,
+    consecutiveCorrect,
+    bestStreak,
+    envelopesOpened,
+    subjectStats,
+    rewards,
+    achievements,
+    words,
+    grammarQuestions,
+    transactions,
+    createBackup
+  ]);
 
   const importData = async (content: string) => {
     try {
@@ -596,14 +792,14 @@ export const useLearningAppLogic = () => {
       if (typeof data.totalCorrect === 'number') setTotalCorrect(data.totalCorrect);
       if (typeof data.consecutiveCorrect === 'number') setConsecutiveCorrect(data.consecutiveCorrect);
       if (typeof data.bestStreak === 'number') setBestStreak(data.bestStreak);
-      if (typeof data.questionsSinceEnvelope === 'number') setQuestionsSinceEnvelope(data.questionsSinceEnvelope);
-      if (typeof data.envelopeInterval === 'number') setEnvelopeInterval(data.envelopeInterval);
       if (typeof data.envelopesOpened === 'number') setEnvelopesOpened(data.envelopesOpened);
+      if (data.subjectStats) setSubjectStats(normalizeSubjectStats(data.subjectStats, getDateKey()));
       if (Array.isArray(data.rewards)) setRewards(data.rewards);
       if (Array.isArray(data.achievements)) setAchievements(data.achievements);
       if (Array.isArray(data.words)) setWords(data.words);
       if (Array.isArray(data.grammarQuestions)) setGrammarQuestions(data.grammarQuestions);
       if (Array.isArray(data.transactions)) setTransactions(data.transactions);
+      if (typeof data.notificationUrl === 'string') setNotificationUrl(data.notificationUrl);
       showToast('数据导入成功', 'success');
       return true;
     } catch (error) {
@@ -611,6 +807,15 @@ export const useLearningAppLogic = () => {
       showToast('导入失败，请检查文件内容', 'error');
       return false;
     }
+  };
+
+  const restoreFromBackup = async () => {
+    const backup = localStorage.getItem(BACKUP_KEY);
+    if (!backup) {
+      showToast('未找到本地备份', 'error');
+      return false;
+    }
+    return importData(backup);
   };
 
   const resetData = () => {
@@ -622,7 +827,10 @@ export const useLearningAppLogic = () => {
 
   const accuracy = totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : 0;
   const luckValue = calculateLuck(totalAnswered);
-  const envelopeCountdown = envelopeInterval - questionsSinceEnvelope;
+  const mathStats = subjectStats.math;
+  const mathAccuracy = mathStats.totalAnswered > 0 ? Math.round((mathStats.totalCorrect / mathStats.totalAnswered) * 100) : 0;
+  const mathLuckValue = calculateLuck(mathStats.totalAnswered);
+  const mathEnvelopeCountdown = SOURCE_CONFIG.math.envelopeInterval - mathStats.questionsSinceEnvelope;
 
   return {
     state: {
@@ -636,8 +844,12 @@ export const useLearningAppLogic = () => {
       bestStreak,
       accuracy,
       luckValue,
-      envelopeInterval,
-      envelopeCountdown,
+      subjectStats,
+      mathAccuracy,
+      mathLuckValue,
+      mathEnvelopeCountdown,
+      backupUpdatedAt,
+      notificationUrl,
       rewards,
       achievements,
       words,
@@ -672,7 +884,8 @@ export const useLearningAppLogic = () => {
       importGrammar,
       exportData,
       importData,
-      setEnvelopeInterval,
+      restoreFromBackup,
+      setNotificationUrl,
       resetData,
       showToast,
       hideToast

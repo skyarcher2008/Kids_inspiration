@@ -47,11 +47,11 @@ export default function App() {
             onChangeDifficulty={actions.setMathDifficulty}
             onCheckAnswer={actions.checkMathAnswer}
             onNextQuestion={actions.createNewMathQuestion}
-            streak={state.consecutiveCorrect}
-            bestStreak={state.bestStreak}
-            accuracy={state.accuracy}
-            luckValue={state.luckValue}
-            envelopeCountdown={state.envelopeCountdown}
+            streak={state.subjectStats.math.consecutiveCorrect}
+            bestStreak={state.subjectStats.math.bestStreak}
+            accuracy={state.mathAccuracy}
+            luckValue={state.mathLuckValue}
+            envelopeCountdown={state.mathEnvelopeCountdown}
           />
         )}
 
@@ -92,12 +92,14 @@ export default function App() {
             bestStreak={state.bestStreak}
             envelopesOpened={state.envelopesOpened}
             luckValue={state.luckValue}
-            envelopeInterval={state.envelopeInterval}
-            onSetEnvelopeInterval={actions.setEnvelopeInterval}
             userName={state.userName}
             onSetUserName={actions.setUserName}
             onExport={actions.exportData}
             onImport={actions.importData}
+            onRestoreBackup={actions.restoreFromBackup}
+            backupUpdatedAt={state.backupUpdatedAt}
+            notificationUrl={state.notificationUrl}
+            onSetNotificationUrl={actions.setNotificationUrl}
             onReset={actions.resetData}
           />
         )}
