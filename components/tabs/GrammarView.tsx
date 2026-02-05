@@ -12,20 +12,28 @@ export const GrammarView: React.FC<GrammarViewProps> = ({ questions, onAnswer, o
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const currentQuestion = useMemo(() => questions[currentIndex], [questions, currentIndex]);
-
-  const handleSubmit = () => {
-    if (!currentQuestion || selectedIndex === null) return;
-    const correct = selectedIndex === currentQuestion.answerIndex;
-    onAnswer(currentQuestion.id, correct);
-    setShowExplanation(true);
-  };
 
   const handleNext = () => {
     setSelectedIndex(null);
     setShowExplanation(false);
+    setSubmitted(false);
     setCurrentIndex((prev) => (prev + 1) % questions.length);
+  };
+
+  const handleSubmit = () => {
+    if (!currentQuestion || selectedIndex === null || submitted) return;
+    setSubmitted(true);
+    const correct = selectedIndex === currentQuestion.answerIndex;
+    onAnswer(currentQuestion.id, correct);
+    setShowExplanation(true);
+    if (correct) {
+      setTimeout(() => {
+        handleNext();
+      }, 1500);
+    }
   };
 
   if (!currentQuestion) {
@@ -87,7 +95,7 @@ export const GrammarView: React.FC<GrammarViewProps> = ({ questions, onAnswer, o
         <div className="flex justify-center gap-3 mt-4">
           <button
             onClick={handleSubmit}
-            disabled={selectedIndex === null}
+            disabled={selectedIndex === null || submitted}
             className="px-6 py-2 rounded-xl font-cute text-white bg-gradient-to-r from-purple-400 to-indigo-400 shadow-md disabled:opacity-50"
           >
             提交答案

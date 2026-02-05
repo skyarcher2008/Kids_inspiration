@@ -29,11 +29,17 @@ export const MathView: React.FC<MathViewProps> = ({
 }) => {
   const [answer, setAnswer] = useState('');
   const [feedback, setFeedback] = useState<{ correct: boolean; message: string } | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = () => {
+    if (submitted) return;
+    setSubmitted(true);
     const result = onCheckAnswer(question, answer);
     if (result.correct) {
       setFeedback({ correct: true, message: '答对啦！奖励已到账～' });
+      setTimeout(() => {
+        handleNext();
+      }, 1500);
     } else {
       setFeedback({ correct: false, message: `答错了，正确答案是 ${result.correctAnswer}` });
     }
@@ -42,6 +48,7 @@ export const MathView: React.FC<MathViewProps> = ({
   const handleNext = () => {
     setAnswer('');
     setFeedback(null);
+    setSubmitted(false);
     onNextQuestion();
   };
 
@@ -76,7 +83,7 @@ export const MathView: React.FC<MathViewProps> = ({
         <div className="flex justify-center gap-3 mt-4">
           <button
             onClick={handleSubmit}
-            disabled={!answer.trim()}
+            disabled={!answer.trim() || submitted}
             className="px-6 py-2 rounded-xl font-cute text-white bg-gradient-to-r from-sky-400 to-blue-400 shadow-md disabled:opacity-50"
           >
             提交答案
