@@ -61,6 +61,11 @@ export default function App() {
             onAnswer={actions.updateWordAfterAnswer}
             onReveal={actions.revealWordAnswer}
             onImport={actions.importWords}
+            streak={state.subjectStats.word.consecutiveCorrect}
+            bestStreak={state.subjectStats.word.bestStreak}
+            accuracy={state.wordAccuracy}
+            luckValue={state.wordLuckValue}
+            envelopeCountdown={state.wordEnvelopeCountdown}
           />
         )}
 
@@ -69,6 +74,11 @@ export default function App() {
             questions={state.grammarQuestions}
             onAnswer={actions.updateGrammarAfterAnswer}
             onImport={actions.importGrammar}
+            streak={state.subjectStats.grammar.consecutiveCorrect}
+            bestStreak={state.subjectStats.grammar.bestStreak}
+            accuracy={state.grammarAccuracy}
+            luckValue={state.grammarLuckValue}
+            envelopeCountdown={state.grammarEnvelopeCountdown}
           />
         )}
 
@@ -93,6 +103,8 @@ export default function App() {
             envelopesOpened={state.envelopesOpened}
             luckValue={state.luckValue}
             userName={state.userName}
+            subjectStats={state.subjectStats}
+            transactions={state.transactions}
             onSetUserName={actions.setUserName}
             onExport={actions.exportData}
             onImport={actions.importData}

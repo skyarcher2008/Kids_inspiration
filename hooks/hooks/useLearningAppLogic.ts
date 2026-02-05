@@ -827,10 +827,21 @@ export const useLearningAppLogic = () => {
 
   const accuracy = totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : 0;
   const luckValue = calculateLuck(totalAnswered);
+  
   const mathStats = subjectStats.math;
   const mathAccuracy = mathStats.totalAnswered > 0 ? Math.round((mathStats.totalCorrect / mathStats.totalAnswered) * 100) : 0;
   const mathLuckValue = calculateLuck(mathStats.totalAnswered);
   const mathEnvelopeCountdown = SOURCE_CONFIG.math.envelopeInterval - mathStats.questionsSinceEnvelope;
+
+  const wordStats = subjectStats.word;
+  const wordAccuracy = wordStats.totalAnswered > 0 ? Math.round((wordStats.totalCorrect / wordStats.totalAnswered) * 100) : 0;
+  const wordLuckValue = calculateLuck(wordStats.totalAnswered);
+  const wordEnvelopeCountdown = SOURCE_CONFIG.word.envelopeInterval - wordStats.questionsSinceEnvelope;
+
+  const grammarStats = subjectStats.grammar;
+  const grammarAccuracy = grammarStats.totalAnswered > 0 ? Math.round((grammarStats.totalCorrect / grammarStats.totalAnswered) * 100) : 0;
+  const grammarLuckValue = calculateLuck(grammarStats.totalAnswered);
+  const grammarEnvelopeCountdown = SOURCE_CONFIG.grammar.envelopeInterval - grammarStats.questionsSinceEnvelope;
 
   return {
     state: {
@@ -848,6 +859,12 @@ export const useLearningAppLogic = () => {
       mathAccuracy,
       mathLuckValue,
       mathEnvelopeCountdown,
+      wordAccuracy,
+      wordLuckValue,
+      wordEnvelopeCountdown,
+      grammarAccuracy,
+      grammarLuckValue,
+      grammarEnvelopeCountdown,
       backupUpdatedAt,
       notificationUrl,
       rewards,
@@ -860,7 +877,8 @@ export const useLearningAppLogic = () => {
       pendingEnvelope,
       envelopesOpened,
       toast,
-      showCelebration
+      showCelebration,
+      subjectStats
     },
     actions: {
       setActiveTab,

@@ -7,6 +7,11 @@ interface WordsViewProps {
   onAnswer: (wordId: string, isCorrect: boolean) => void;
   onReveal: (wordId: string) => void;
   onImport: (file: File) => void;
+  streak: number;
+  bestStreak: number;
+  accuracy: number;
+  luckValue: number;
+  envelopeCountdown: number;
 }
 
 const hashSeed = (text: string) => {
@@ -33,7 +38,7 @@ const maskWord = (word: string, stage: number, seedText: string) => {
     .join(' ');
 };
 
-export const WordsView: React.FC<WordsViewProps> = ({ words, onAnswer, onReveal, onImport }) => {
+export const WordsView: React.FC<WordsViewProps> = ({ words, onAnswer, onReveal, onImport, streak, bestStreak, accuracy, luckValue, envelopeCountdown }) => {
   const [input, setInput] = useState('');
   const [feedback, setFeedback] = useState<{ correct: boolean; answer: string } | null>(null);
   const [showAnswerModal, setShowAnswerModal] = useState(false);
@@ -284,6 +289,29 @@ export const WordsView: React.FC<WordsViewProps> = ({ words, onAnswer, onReveal,
           </div>
         </div>
       )}
+
+      <div className="px-4 mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
+          <div className="text-xs text-slate-400 font-bold">连对</div>
+          <div className="text-2xl font-cute text-amber-400">{streak}</div>
+        </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
+          <div className="text-xs text-slate-400 font-bold">最佳连对</div>
+          <div className="text-2xl font-cute text-amber-400">{bestStreak}</div>
+        </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
+          <div className="text-xs text-slate-400 font-bold">正确率</div>
+          <div className="text-2xl font-cute text-emerald-500">{accuracy}%</div>
+        </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
+          <div className="text-xs text-slate-400 font-bold">红包倒计时</div>
+          <div className="text-2xl font-cute text-rose-400">{envelopeCountdown} 题</div>
+        </div>
+      </div>
+
+      <div className="px-4 mt-5 text-xs text-slate-400 text-center">
+        幸运值 {luckValue.toFixed(2)}，答题越多红包越丰厚～
+      </div>
 
       <div className="px-4 mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
