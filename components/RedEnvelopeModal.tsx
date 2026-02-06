@@ -20,8 +20,8 @@ export const RedEnvelopeModal: React.FC<RedEnvelopeModalProps> = ({ reward, onCl
     : `幸运值 ${(reward.luck ?? 0).toFixed(2)}，积分更容易高哦！`;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-6">
-      <div className="bg-white rounded-[2rem] w-full max-w-sm shadow-2xl p-8 text-center animate-pop border-4 border-rose-200">
+    <div className="fixed top-0 left-0 w-screen h-screen z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6" style={{ touchAction: 'none' }}>
+      <div className="bg-white rounded-[2rem] w-full max-w-sm shadow-2xl p-8 text-center animate-pop border-4 border-rose-200 relative z-[10000]">
         <div className="text-6xl mb-3">🧧</div>
         <h2 className="font-cute text-2xl text-slate-800 mb-2">{title}</h2>
         <p className="text-slate-500 mb-6 text-sm">{subtitle}</p>

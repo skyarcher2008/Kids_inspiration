@@ -30,6 +30,17 @@ interface AchievementsViewProps {
   userName: string;
   subjectStats: Record<LearningSource, SubjectStats>;
   transactions: Transaction[];
+  familyId: string;
+  syncPassword: string;
+  syncStatus: 'idle' | 'syncing' | 'saved' | 'error';
+  syncConfigured: boolean;
+  lastSyncAt: string;
+  onSetFamilyId: (value: string) => void;
+  onSetSyncPassword: (value: string) => void;
+  onCreateFamilyId: () => void;
+  onSyncPull: () => void | Promise<boolean>;
+  onSyncPush: () => void | Promise<boolean>;
+  onDisconnect: () => void;
   onSetUserName: (name: string) => void;
   onExport: () => string;
   onImport: (content: string) => Promise<boolean> | boolean;
@@ -53,6 +64,17 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({
   userName,
   subjectStats,
   transactions,
+  familyId,
+  syncPassword,
+  syncStatus,
+  syncConfigured,
+  lastSyncAt,
+  onSetFamilyId,
+  onSetSyncPassword,
+  onCreateFamilyId,
+  onSyncPull,
+  onSyncPush,
+  onDisconnect,
   onSetUserName,
   onExport,
   onImport,
@@ -384,6 +406,72 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({
             <p className="text-xs text-slate-300 mt-1">开始练习吧，让这里变得精彩！</p>
           </div>
         )}
+      </div>
+
+      <div className="bg-white rounded-[2rem] mx-4 p-6 shadow-sm border border-slate-100 mb-6">
+        <div className="text-sm text-slate-500 font-bold mb-3 flex items-center gap-2">
+          <Settings size={16} /> 跨设备同步
+        </div>
+        <div className="text-xs text-slate-400 mb-4">
+          将学习数据同步到 NAS，多个设备使用同一个家庭ID即可共享进度。
+        </div>
+
+        {!syncConfigured && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-700 text-xs rounded-xl p-3 mb-4">
+            ⚠️ 未配置同步地址，请在环境变量中设置 VITE_SYNC_API_URL。
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              value={familyId}
+              onChange={(e) => onSetFamilyId(e.target.value.trim())}
+              placeholder="家庭ID"
+              className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-slate-700 font-mono"
+            />
+            <button
+              onClick={onCreateFamilyId}
+              className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 font-bold"
+            >
+              生成ID
+            </button>
+          </div>
+          <input
+            type="password"
+            value={syncPassword}
+            onChange={(e) => onSetSyncPassword(e.target.value)}
+            placeholder="同步密码（可选）"
+            className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-slate-700"
+          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={onSyncPull}
+              disabled={!syncConfigured || !familyId || syncStatus === 'syncing'}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-600 font-bold disabled:opacity-50"
+            >
+              下载同步
+            </button>
+            <button
+              onClick={onSyncPush}
+              disabled={!syncConfigured || !familyId || syncStatus === 'syncing'}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-50 text-sky-600 font-bold disabled:opacity-50"
+            >
+              立即上传
+            </button>
+            <button
+              onClick={onDisconnect}
+              disabled={!familyId}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-50 text-rose-500 font-bold disabled:opacity-50"
+            >
+              断开同步
+            </button>
+          </div>
+          <div className="text-xs text-slate-400">
+            状态：{syncStatus === 'syncing' ? '同步中...' : syncStatus === 'saved' ? '已同步' : syncStatus === 'error' ? '同步失败' : '未同步'}
+            {lastSyncAt && ` · 最近同步 ${new Date(lastSyncAt).toLocaleString()}`}
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded-[2rem] mx-4 p-6 shadow-sm border border-slate-100">

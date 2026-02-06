@@ -13,6 +13,7 @@ import { LEARNING_CONFIG } from '../../config/learningConfig';
 import { Achievement, GrammarQuestion, MathDifficulty, MathQuestion, Reward, Transaction, WordItem } from '../../types';
 import { ThemeKey } from '../../styles/themes';
 import { ToastType } from '../../components/Toast';
+import { syncService } from '../../services/syncService';
 
 GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -295,6 +296,15 @@ export const useLearningAppLogic = () => {
 
   const [backupUpdatedAt, setBackupUpdatedAt] = useState<string>(() => localStorage.getItem(BACKUP_TIME_KEY) || '');
   const [notificationUrl, setNotificationUrl] = useState<string>(() => localStorage.getItem('app_notification_url') || '');
+  const [syncFamilyId, setSyncFamilyId] = useState<string>(() => localStorage.getItem('app_sync_family_id') || '');
+  const [syncPassword, setSyncPassword] = useState<string>(() => localStorage.getItem('app_sync_password') || '');
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error'>('idle');
+  const [lastSyncAt, setLastSyncAt] = useState<string>(() => localStorage.getItem('app_sync_last') || '');
+  const [syncAutoEnabled, setSyncAutoEnabled] = useState(false);
+  const [dataUpdatedAt, setDataUpdatedAt] = useState<number>(() => {
+    const saved = localStorage.getItem('app_data_updated_at');
+    return saved ? parseInt(saved, 10) : Date.now();
+  });
 
   useEffect(() => localStorage.setItem('app_username', userName), [userName]);
   useEffect(() => localStorage.setItem('app_theme', themeKey), [themeKey]);
@@ -313,6 +323,11 @@ export const useLearningAppLogic = () => {
   useEffect(() => localStorage.setItem('app_math_difficulty', mathDifficulty), [mathDifficulty]);
   useEffect(() => localStorage.setItem('app_backup_time', backupUpdatedAt), [backupUpdatedAt]);
   useEffect(() => localStorage.setItem('app_notification_url', notificationUrl), [notificationUrl]);
+  useEffect(() => localStorage.setItem('app_sync_family_id', syncFamilyId), [syncFamilyId]);
+  useEffect(() => localStorage.setItem('app_sync_password', syncPassword), [syncPassword]);
+  useEffect(() => localStorage.setItem('app_sync_last', lastSyncAt), [lastSyncAt]);
+  useEffect(() => localStorage.setItem('app_data_updated_at', dataUpdatedAt.toString()), [dataUpdatedAt]);
+  useEffect(() => setSyncAutoEnabled(false), [syncFamilyId]);
 
   const showToast = useCallback((message: string, type: ToastType = 'success') => {
     setToast({ show: true, message, type });
@@ -727,33 +742,52 @@ export const useLearningAppLogic = () => {
     }
   };
 
-  const exportData = () => {
-    return JSON.stringify({
-      userName,
-      themeKey,
-      points,
-      totalAnswered,
-      totalCorrect,
-      consecutiveCorrect,
-      bestStreak,
-      envelopesOpened,
-      subjectStats,
-      rewards,
-      achievements,
-      words,
-      grammarQuestions,
-      transactions,
-      notificationUrl
-    });
-  };
+  const buildExportData = (lastUpdated: number) => ({
+    userName,
+    themeKey,
+    points,
+    totalAnswered,
+    totalCorrect,
+    consecutiveCorrect,
+    bestStreak,
+    envelopesOpened,
+    subjectStats,
+    rewards,
+    achievements,
+    words,
+    grammarQuestions,
+    transactions,
+    notificationUrl,
+    lastUpdated
+  });
+
+  const exportData = () => JSON.stringify(buildExportData(dataUpdatedAt));
 
   const createBackup = useCallback(() => {
-    const payload = exportData();
+    const now = Date.now();
+    const payload = JSON.stringify(buildExportData(now));
     localStorage.setItem(BACKUP_KEY, payload);
     const timestamp = new Date().toISOString();
     localStorage.setItem(BACKUP_TIME_KEY, timestamp);
     setBackupUpdatedAt(timestamp);
-  }, [exportData]);
+    setDataUpdatedAt(now);
+  }, [
+    userName,
+    themeKey,
+    points,
+    totalAnswered,
+    totalCorrect,
+    consecutiveCorrect,
+    bestStreak,
+    envelopesOpened,
+    subjectStats,
+    rewards,
+    achievements,
+    words,
+    grammarQuestions,
+    transactions,
+    notificationUrl
+  ]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -782,24 +816,33 @@ export const useLearningAppLogic = () => {
     createBackup
   ]);
 
+  const importDataObject = async (data: any) => {
+    if (typeof data.userName === 'string') setUserName(data.userName);
+    if (data.themeKey) setThemeKey(data.themeKey as ThemeKey);
+    if (typeof data.points === 'number') setPoints(data.points);
+    if (typeof data.totalAnswered === 'number') setTotalAnswered(data.totalAnswered);
+    if (typeof data.totalCorrect === 'number') setTotalCorrect(data.totalCorrect);
+    if (typeof data.consecutiveCorrect === 'number') setConsecutiveCorrect(data.consecutiveCorrect);
+    if (typeof data.bestStreak === 'number') setBestStreak(data.bestStreak);
+    if (typeof data.envelopesOpened === 'number') setEnvelopesOpened(data.envelopesOpened);
+    if (data.subjectStats) setSubjectStats(normalizeSubjectStats(data.subjectStats, getDateKey()));
+    if (Array.isArray(data.rewards)) setRewards(data.rewards);
+    if (Array.isArray(data.achievements)) setAchievements(data.achievements);
+    if (Array.isArray(data.words)) setWords(data.words);
+    if (Array.isArray(data.grammarQuestions)) setGrammarQuestions(data.grammarQuestions);
+    if (Array.isArray(data.transactions)) setTransactions(data.transactions);
+    if (typeof data.notificationUrl === 'string') setNotificationUrl(data.notificationUrl);
+    if (typeof data.lastUpdated === 'number') {
+      setDataUpdatedAt(data.lastUpdated);
+    } else {
+      setDataUpdatedAt(Date.now());
+    }
+  };
+
   const importData = async (content: string) => {
     try {
       const data = JSON.parse(content);
-      if (typeof data.userName === 'string') setUserName(data.userName);
-      if (data.themeKey) setThemeKey(data.themeKey as ThemeKey);
-      if (typeof data.points === 'number') setPoints(data.points);
-      if (typeof data.totalAnswered === 'number') setTotalAnswered(data.totalAnswered);
-      if (typeof data.totalCorrect === 'number') setTotalCorrect(data.totalCorrect);
-      if (typeof data.consecutiveCorrect === 'number') setConsecutiveCorrect(data.consecutiveCorrect);
-      if (typeof data.bestStreak === 'number') setBestStreak(data.bestStreak);
-      if (typeof data.envelopesOpened === 'number') setEnvelopesOpened(data.envelopesOpened);
-      if (data.subjectStats) setSubjectStats(normalizeSubjectStats(data.subjectStats, getDateKey()));
-      if (Array.isArray(data.rewards)) setRewards(data.rewards);
-      if (Array.isArray(data.achievements)) setAchievements(data.achievements);
-      if (Array.isArray(data.words)) setWords(data.words);
-      if (Array.isArray(data.grammarQuestions)) setGrammarQuestions(data.grammarQuestions);
-      if (Array.isArray(data.transactions)) setTransactions(data.transactions);
-      if (typeof data.notificationUrl === 'string') setNotificationUrl(data.notificationUrl);
+      await importDataObject(data);
       showToast('数据导入成功', 'success');
       return true;
     } catch (error) {
@@ -818,6 +861,93 @@ export const useLearningAppLogic = () => {
     return importData(backup);
   };
 
+  const syncConfigured = syncService.isConfigured();
+
+  const createFamilyId = () => {
+    const id = syncService.generateFamilyId();
+    setSyncFamilyId(id);
+    showToast('已生成家庭ID', 'success');
+  };
+
+  const syncPull = useCallback(async () => {
+    if (!syncConfigured) {
+      showToast('未配置同步地址', 'error');
+      return false;
+    }
+    if (!syncFamilyId) {
+      showToast('请先填写家庭ID', 'error');
+      return false;
+    }
+    setSyncStatus('syncing');
+    try {
+      const result = await syncService.loadData(syncFamilyId, syncPassword || undefined);
+      if (!result.data) {
+        setSyncStatus('error');
+        showToast('云端暂无数据', 'error');
+        return false;
+      }
+      const remoteUpdated = result.lastUpdated || 0;
+      if (remoteUpdated > dataUpdatedAt) {
+        await importDataObject(result.data);
+      }
+      setLastSyncAt(new Date().toISOString());
+      setSyncStatus('saved');
+      setSyncAutoEnabled(true);
+      showToast('同步完成', 'success');
+      return true;
+    } catch (error: any) {
+      setSyncStatus('error');
+      if (error?.message === 'sync_auth_failed') {
+        showToast('同步密码错误', 'error');
+      } else {
+        showToast('同步失败，请检查网络或地址', 'error');
+      }
+      return false;
+    }
+  }, [syncConfigured, syncFamilyId, syncPassword, dataUpdatedAt]);
+
+  const syncPush = useCallback(async () => {
+    if (!syncConfigured) return false;
+    if (!syncFamilyId) return false;
+    setSyncStatus('syncing');
+    try {
+      const now = Date.now();
+      const payload = buildExportData(now);
+      await syncService.saveData(syncFamilyId, payload, syncPassword || undefined);
+      setDataUpdatedAt(now);
+      setLastSyncAt(new Date().toISOString());
+      setSyncStatus('saved');
+      setSyncAutoEnabled(true);
+      return true;
+    } catch (error: any) {
+      setSyncStatus('error');
+      if (error?.message === 'sync_conflict') {
+        showToast('云端数据更新，请先下载同步', 'error');
+      } else if (error?.message === 'sync_auth_failed') {
+        showToast('同步密码错误', 'error');
+      } else {
+        showToast('上传失败，请检查网络或地址', 'error');
+      }
+      return false;
+    }
+  }, [syncConfigured, syncFamilyId, syncPassword, userName, themeKey, points, totalAnswered, totalCorrect, consecutiveCorrect, bestStreak, envelopesOpened, subjectStats, rewards, achievements, words, grammarQuestions, transactions, notificationUrl]);
+
+  useEffect(() => {
+    if (!syncConfigured || !syncFamilyId || !syncAutoEnabled) return;
+    const timer = setTimeout(() => {
+      syncPush();
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [syncConfigured, syncFamilyId, syncPassword, dataUpdatedAt, syncPush, syncAutoEnabled]);
+
+  const disconnectSync = () => {
+    setSyncFamilyId('');
+    setSyncPassword('');
+    setSyncStatus('idle');
+    setSyncAutoEnabled(false);
+    showToast('已断开同步', 'success');
+  };
+
   const resetData = () => {
     if (window.confirm('确定要重置所有数据吗？此操作无法撤销！')) {
       localStorage.clear();
@@ -831,17 +961,17 @@ export const useLearningAppLogic = () => {
   const mathStats = subjectStats.math;
   const mathAccuracy = mathStats.totalAnswered > 0 ? Math.round((mathStats.totalCorrect / mathStats.totalAnswered) * 100) : 0;
   const mathLuckValue = calculateLuck(mathStats.totalAnswered);
-  const mathEnvelopeCountdown = SOURCE_CONFIG.math.envelopeInterval - mathStats.questionsSinceEnvelope;
+  const mathEnvelopeCountdown = pendingEnvelope ? 0 : Math.max(0, SOURCE_CONFIG.math.envelopeInterval - mathStats.questionsSinceEnvelope);
 
   const wordStats = subjectStats.word;
   const wordAccuracy = wordStats.totalAnswered > 0 ? Math.round((wordStats.totalCorrect / wordStats.totalAnswered) * 100) : 0;
   const wordLuckValue = calculateLuck(wordStats.totalAnswered);
-  const wordEnvelopeCountdown = SOURCE_CONFIG.word.envelopeInterval - wordStats.questionsSinceEnvelope;
+  const wordEnvelopeCountdown = pendingEnvelope ? 0 : Math.max(0, SOURCE_CONFIG.word.envelopeInterval - wordStats.questionsSinceEnvelope);
 
   const grammarStats = subjectStats.grammar;
   const grammarAccuracy = grammarStats.totalAnswered > 0 ? Math.round((grammarStats.totalCorrect / grammarStats.totalAnswered) * 100) : 0;
   const grammarLuckValue = calculateLuck(grammarStats.totalAnswered);
-  const grammarEnvelopeCountdown = SOURCE_CONFIG.grammar.envelopeInterval - grammarStats.questionsSinceEnvelope;
+  const grammarEnvelopeCountdown = pendingEnvelope ? 0 : Math.max(0, SOURCE_CONFIG.grammar.envelopeInterval - grammarStats.questionsSinceEnvelope);
 
   return {
     state: {
@@ -865,6 +995,11 @@ export const useLearningAppLogic = () => {
       grammarAccuracy,
       grammarLuckValue,
       grammarEnvelopeCountdown,
+      syncFamilyId,
+      syncPassword,
+      syncStatus,
+      syncConfigured,
+      lastSyncAt,
       backupUpdatedAt,
       notificationUrl,
       rewards,
@@ -877,8 +1012,7 @@ export const useLearningAppLogic = () => {
       pendingEnvelope,
       envelopesOpened,
       toast,
-      showCelebration,
-      subjectStats
+      showCelebration
     },
     actions: {
       setActiveTab,
@@ -904,6 +1038,12 @@ export const useLearningAppLogic = () => {
       importData,
       restoreFromBackup,
       setNotificationUrl,
+      setSyncFamilyId,
+      setSyncPassword,
+      createFamilyId,
+      syncPull,
+      syncPush,
+      disconnectSync,
       resetData,
       showToast,
       hideToast

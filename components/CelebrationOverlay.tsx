@@ -14,10 +14,10 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({ isVisibl
   const isPenalty = type === 'penalty';
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center pointer-events-none">
+    <div className="fixed top-0 left-0 w-screen h-screen z-[100] flex flex-col items-center justify-center pointer-events-none overflow-hidden">
       {/* Background - Darker and gloomier for penalty */}
       <div 
-        className={`absolute inset-0 backdrop-blur-[3px] animate-fade-out ${isPenalty ? 'bg-slate-900/80' : 'bg-black/30'}`} 
+        className={`absolute top-0 left-0 w-full h-full backdrop-blur-[3px] animate-fade-out ${isPenalty ? 'bg-slate-900/80' : 'bg-black/30'}`} 
         style={{ animationDuration: '1.5s', animationDelay: '0.8s', animationFillMode: 'forwards' }}
       ></div>
       

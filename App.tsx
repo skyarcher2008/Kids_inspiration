@@ -105,6 +105,17 @@ export default function App() {
             userName={state.userName}
             subjectStats={state.subjectStats}
             transactions={state.transactions}
+            familyId={state.syncFamilyId}
+            syncPassword={state.syncPassword}
+            syncStatus={state.syncStatus}
+            syncConfigured={state.syncConfigured}
+            lastSyncAt={state.lastSyncAt}
+            onSetFamilyId={actions.setSyncFamilyId}
+            onSetSyncPassword={actions.setSyncPassword}
+            onCreateFamilyId={actions.createFamilyId}
+            onSyncPull={actions.syncPull}
+            onSyncPush={actions.syncPush}
+            onDisconnect={actions.disconnectSync}
             onSetUserName={actions.setUserName}
             onExport={actions.exportData}
             onImport={actions.importData}
