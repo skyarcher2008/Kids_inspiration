@@ -105,6 +105,7 @@ export default function App() {
             userName={state.userName}
             subjectStats={state.subjectStats}
             transactions={state.transactions}
+            words={state.words}
             familyId={state.syncFamilyId}
             syncPassword={state.syncPassword}
             syncStatus={state.syncStatus}
@@ -117,6 +118,7 @@ export default function App() {
             onSyncPush={actions.syncPush}
             onDisconnect={actions.disconnectSync}
             onSetUserName={actions.setUserName}
+            onSetWords={actions.setWords}
             onExport={actions.exportData}
             onImport={actions.importData}
             onRestoreBackup={actions.restoreFromBackup}

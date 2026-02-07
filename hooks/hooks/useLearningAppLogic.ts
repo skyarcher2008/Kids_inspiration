@@ -447,16 +447,16 @@ export const useLearningAppLogic = () => {
     const nextSubjectStreak = isCorrect ? currentStats.consecutiveCorrect + 1 : 0;
     const nextSubjectBestStreak = Math.max(currentStats.bestStreak, nextSubjectStreak);
 
-    let nextQuestionsSinceEnvelope = currentStats.questionsSinceEnvelope + 1;
+    let nextQuestionsSinceEnvelope = currentStats.questionsSinceEnvelope + (isCorrect ? 1 : 0);
     const isDouble = nextDailyCount <= config.dailyDoubleLimit;
 
     let bonus = 0;
     if (isCorrect && nextSubjectStreak > 0 && nextSubjectStreak % config.streakRewardInterval === 0) {
-      bonus = 5;
+      bonus = 10;
     }
 
-    const baseGain = config.basePoints + bonus;
-    const totalGain = isCorrect ? baseGain * (isDouble ? 2 : 1) : 0;
+    const baseGain = config.basePoints * (isDouble ? 2 : 1);
+    const totalGain = isCorrect ? baseGain + bonus : 0;
 
     if (isCorrect) {
       const labels = [] as string[];
@@ -464,6 +464,9 @@ export const useLearningAppLogic = () => {
       if (isDouble) labels.push('双倍积分（每日前十题）');
       if (extraLabel && !labels.includes(extraLabel)) labels.push(extraLabel);
       addPoints(totalGain, `${config.label}答题 +${totalGain}${labels.length ? `（${labels.join('，')}）` : ''}`);
+      if (bonus > 0) {
+        showToast(`连对奖励 +${bonus} 分`, 'success');
+      }
       const nextPoints = points + totalGain;
       updateAchievements(nextPoints, nextTotalCorrect, nextStreak, envelopesOpened);
       setShowCelebration({ show: true, points: totalGain, type: 'success' });
@@ -484,7 +487,7 @@ export const useLearningAppLogic = () => {
 
     let nextSignInStreak = currentStats.signInStreak;
     let nextLastSignInDate = currentStats.lastSignInDate;
-    const shouldSignIn = currentStats.lastSignInDate !== todayKey;
+    const shouldSignIn = isCorrect && currentStats.lastSignInDate !== todayKey;
     if (shouldSignIn) {
       nextSignInStreak = currentStats.lastSignInDate && isYesterday(currentStats.lastSignInDate, todayKey)
         ? currentStats.signInStreak + 1
@@ -501,7 +504,7 @@ export const useLearningAppLogic = () => {
         sourceLabel: config.label,
         signInDay: nextSignInStreak
       });
-    } else if (canOpenEnvelope && nextQuestionsSinceEnvelope >= config.envelopeInterval) {
+    } else if (canOpenEnvelope && isCorrect && nextQuestionsSinceEnvelope >= config.envelopeInterval) {
       const reward = getEnvelopeReward(nextSubjectTotalAnswered);
       setPendingEnvelope({
         points: reward.points,

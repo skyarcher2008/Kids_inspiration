@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Upload, RefreshCw, Sparkles } from 'lucide-react';
 import { WordItem } from '../../types';
 
@@ -22,20 +23,32 @@ const hashSeed = (text: string) => {
   return hash;
 };
 
-const maskWord = (word: string, stage: number, seedText: string) => {
-  if (stage >= 3) return '_ '.repeat(word.length).trim();
-  const letters = word.split('');
+const isLetter = (value: string) => /[a-zA-Z]/.test(value);
+
+const maskWordTokens = (word: string, stage: number, seedText: string) => {
+  const chars = word.split('');
+  const letterIndexes = chars
+    .map((char, idx) => (isLetter(char) ? idx : -1))
+    .filter(idx => idx >= 0);
+
+  if (letterIndexes.length === 0) return chars;
+
+  if (stage >= 3) {
+    return chars.map((char, idx) => (isLetter(char) ? '_' : char));
+  }
+
   const hideCount = stage === 0 ? 1 : stage === 1 ? 2 : 3;
   const indexes = new Set<number>();
+  const firstLetterIndex = letterIndexes[0];
   let seed = hashSeed(seedText);
-  while (indexes.size < Math.min(hideCount, word.length - 1)) {
+
+  while (indexes.size < Math.min(hideCount, letterIndexes.length - 1)) {
     seed = (seed * 9301 + 49297) % 233280;
-    const idx = seed % word.length;
-    if (idx !== 0) indexes.add(idx);
+    const pick = letterIndexes[seed % letterIndexes.length];
+    if (pick !== firstLetterIndex) indexes.add(pick);
   }
-  return letters
-    .map((letter, idx) => (idx === 0 || !indexes.has(idx) ? letter : '_'))
-    .join(' ');
+
+  return chars.map((char, idx) => (indexes.has(idx) ? '_' : char));
 };
 
 export const WordsView: React.FC<WordsViewProps> = ({ words, onAnswer, onReveal, onImport, streak, bestStreak, accuracy, luckValue, envelopeCountdown }) => {
@@ -59,12 +72,10 @@ export const WordsView: React.FC<WordsViewProps> = ({ words, onAnswer, onReveal,
   const completedCount = useMemo(() => words.filter(word => word.familiarity === 'known').length, [words]);
 
   const currentWord = dueWords[0] || words[0];
-  const masked = useMemo(() => {
-    if (!currentWord) return '';
-    return maskWord(currentWord.word, currentWord.stage, `${currentWord.id}-${currentWord.stage}`);
+  const maskedTokens = useMemo(() => {
+    if (!currentWord) return [] as string[];
+    return maskWordTokens(currentWord.word, currentWord.stage, `${currentWord.id}-${currentWord.stage}`);
   }, [currentWord]);
-
-  const maskedTokens = useMemo(() => masked.split(' ').filter(Boolean), [masked]);
 
   const findNextBlank = (startIndex: number) => {
     for (let i = startIndex + 1; i < maskedTokens.length; i += 1) {
@@ -81,21 +92,20 @@ export const WordsView: React.FC<WordsViewProps> = ({ words, onAnswer, onReveal,
   };
 
   useEffect(() => {
-    if (!currentWord) return;
+    if (!currentWord || showAnswerModal) return;
     const letters = currentWord.word.split('').map((letter, idx) => (maskedTokens[idx] === '_' ? '' : letter));
     setInlineLetters(letters);
     setInput('');
     setFeedback(null);
     setShowAnswerModal(false);
     setPendingRevealId(null);
-  }, [currentWord, maskedTokens]);
+  }, [currentWord, maskedTokens, showAnswerModal]);
 
-  const getMissingLetters = (word: string, maskedText: string) => {
+  const getMissingLetters = (word: string, tokens: string[]) => {
     const letters = word.split('');
-    const tokens = maskedText.split(' ');
     const missing: string[] = [];
     for (let i = 0; i < Math.min(letters.length, tokens.length); i += 1) {
-      if (tokens[i] === '_' && letters[i].trim()) {
+      if (tokens[i] === '_' && isLetter(letters[i])) {
         missing.push(letters[i]);
       }
     }
@@ -123,21 +133,25 @@ export const WordsView: React.FC<WordsViewProps> = ({ words, onAnswer, onReveal,
     return Array.from(new Set(answers.map(item => normalize(item))));
   };
 
-  const buildInlineAnswer = () => inlineLetters.join('');
+  const buildInlineAnswer = () => maskedTokens
+    .map((token, idx) => (token === '_' ? (inlineLetters[idx] || '') : token))
+    .join('');
 
   const handleSubmit = () => {
     if (!currentWord) return;
     const candidate = input.trim() ? input : buildInlineAnswer();
     const normalized = normalize(candidate);
     const targets = buildAcceptableAnswers(currentWord.word);
-    const missingLetters = normalize(getMissingLetters(currentWord.word, masked)).replace(/\s+/g, '');
+    const missingLetters = normalize(getMissingLetters(currentWord.word, maskedTokens)).replace(/\s+/g, '');
     const compact = normalized.replace(/\s+/g, '');
     const correct =
       targets.some(target => target === normalized || target.replace(/\s+/g, '') === compact) ||
       (missingLetters.length > 0 && compact === missingLetters);
     onAnswer(currentWord.id, correct);
     setFeedback({ correct, answer: currentWord.word });
-    setShowAnswerModal(true);
+    if (!correct) {
+      setShowAnswerModal(true);
+    }
   };
 
   const handleNext = () => {
@@ -228,6 +242,16 @@ export const WordsView: React.FC<WordsViewProps> = ({ words, onAnswer, onReveal,
                 />
               );
             }
+            if (!isLetter(letter)) {
+              return (
+                <div
+                  key={`fixed-${idx}`}
+                  className="w-6 h-12 flex items-center justify-center text-xl font-bold text-slate-400"
+                >
+                  {letter}
+                </div>
+              );
+            }
             return (
               <div
                 key={`fixed-${idx}`}
@@ -242,7 +266,7 @@ export const WordsView: React.FC<WordsViewProps> = ({ words, onAnswer, onReveal,
         <div className="flex justify-center gap-3 mt-4">
           <button
             onClick={handleSubmit}
-            disabled={!inlineLetters.some(letter => letter.trim())}
+            disabled={!maskedTokens.some((token, idx) => token === '_' && (inlineLetters[idx] || '').trim())}
             className="px-6 py-2 rounded-xl font-cute text-white bg-gradient-to-r from-emerald-400 to-green-400 shadow-md disabled:opacity-50"
           >
             提交答案
@@ -266,8 +290,8 @@ export const WordsView: React.FC<WordsViewProps> = ({ words, onAnswer, onReveal,
         )}
       </div>
 
-      {showAnswerModal && feedback && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm p-6">
+      {showAnswerModal && feedback && createPortal(
+        <div className="fixed top-0 left-0 w-screen h-screen z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-6">
           <div className="bg-white rounded-[2rem] w-full max-w-sm shadow-2xl p-6 text-center">
             <div className={`text-2xl font-cute mb-2 ${feedback.correct ? 'text-emerald-500' : 'text-rose-400'}`}>
               {feedback.correct ? '太棒了！' : '再努力一下～'}
@@ -287,7 +311,8 @@ export const WordsView: React.FC<WordsViewProps> = ({ words, onAnswer, onReveal,
               我知道了
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <div className="px-4 mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">

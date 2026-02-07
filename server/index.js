@@ -47,6 +47,16 @@ const createApp = async () => {
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
 
+  app.get('/api/sync/list', async (_req, res) => {
+    const store = loadStore();
+    const families = Object.values(store.families || {}).map(row => ({
+      familyId: row.family_id,
+      lastUpdated: row.updated_at || null
+    }));
+    families.sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0));
+    return res.json({ families });
+  });
+
   app.get('/api/sync', async (req, res) => {
     const familyId = req.query.familyId;
     if (!familyId || typeof familyId !== 'string') {

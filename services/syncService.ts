@@ -3,7 +3,14 @@ type SyncResponse = {
   lastUpdated: number | null;
 };
 
-const API_URL = (import.meta as any).env?.VITE_SYNC_API_URL || '';
+const getDefaultApiUrl = () => {
+  if (typeof window === 'undefined') return '';
+  const { protocol, hostname } = window.location;
+  if (!hostname) return '';
+  return `${protocol}//${hostname}:8787`;
+};
+
+const API_URL = (import.meta as any).env?.VITE_SYNC_API_URL || getDefaultApiUrl();
 
 const normalizeBaseUrl = (value: string) => value.replace(/\/$/, '');
 

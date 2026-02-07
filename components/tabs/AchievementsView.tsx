@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Download, Upload, Settings, User, Calculator, BookOpen, SpellCheck, TrendingUp, Calendar, Award } from 'lucide-react';
-import { Achievement, Transaction } from '../../types';
+import { Achievement, Transaction, WordItem } from '../../types';
 import { AchievementBadges } from '../AchievementBadges';
 
 type LearningSource = 'math' | 'word' | 'grammar';
@@ -30,6 +30,7 @@ interface AchievementsViewProps {
   userName: string;
   subjectStats: Record<LearningSource, SubjectStats>;
   transactions: Transaction[];
+  words: WordItem[];
   familyId: string;
   syncPassword: string;
   syncStatus: 'idle' | 'syncing' | 'saved' | 'error';
@@ -42,6 +43,7 @@ interface AchievementsViewProps {
   onSyncPush: () => void | Promise<boolean>;
   onDisconnect: () => void;
   onSetUserName: (name: string) => void;
+  onSetWords: React.Dispatch<React.SetStateAction<WordItem[]>>;
   onExport: () => string;
   onImport: (content: string) => Promise<boolean> | boolean;
   onRestoreBackup: () => void;
@@ -64,6 +66,7 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({
   userName,
   subjectStats,
   transactions,
+  words,
   familyId,
   syncPassword,
   syncStatus,
@@ -76,6 +79,7 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({
   onSyncPush,
   onDisconnect,
   onSetUserName,
+  onSetWords,
   onExport,
   onImport,
   onRestoreBackup,
@@ -85,6 +89,9 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({
   onReset
 }) => {
   const [nameInput, setNameInput] = useState(userName);
+  const [wordEdits, setWordEdits] = useState<WordItem[]>(words);
+
+  useEffect(() => setWordEdits(words), [words]);
 
   // 计算今日和本周的统计数据
   const todayKey = new Date().toISOString().split('T')[0];
@@ -546,6 +553,76 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({
             最近一次自动备份：{new Date(backupUpdatedAt).toLocaleString()}
           </div>
         )}
+      </div>
+
+      <div className="bg-white rounded-[2rem] mx-4 p-6 shadow-sm border border-slate-100 mt-6">
+        <div className="text-sm text-slate-500 font-bold mb-3 flex items-center gap-2">
+          <BookOpen size={16} /> 单词库编辑
+        </div>
+        <div className="text-xs text-slate-400 mb-4">
+          纠正导入的单词与中文释义，保存后立即生效。
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button
+            onClick={() => setWordEdits(prev => ([
+              { id: `manual-${Date.now()}`, word: '', meaning: '', stage: 0, familiarity: 'new', nextReview: Date.now(), correctCount: 0, wrongCount: 0 },
+              ...prev
+            ]))}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 text-slate-600"
+          >
+            添加单词
+          </button>
+          <button
+            onClick={() => onSetWords(wordEdits.map(item => ({
+              ...item,
+              word: item.word.trim().toLowerCase(),
+              meaning: item.meaning.trim()
+            })).filter(item => item.word && item.meaning))}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-600 font-bold"
+          >
+            保存修改
+          </button>
+        </div>
+
+        <div className="space-y-3 max-h-[420px] overflow-auto pr-1">
+          {wordEdits.length === 0 && (
+            <div className="text-xs text-slate-400">暂无单词，请先导入或添加。</div>
+          )}
+          {wordEdits.map((item, index) => (
+            <div key={item.id} className="bg-slate-50 border border-slate-100 rounded-2xl p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-slate-400">#{index + 1}</span>
+                <button
+                  onClick={() => setWordEdits(prev => prev.filter(word => word.id !== item.id))}
+                  className="text-xs text-rose-500 font-bold"
+                >
+                  删除
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  value={item.word}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setWordEdits(prev => prev.map(word => word.id === item.id ? { ...word, word: value } : word));
+                  }}
+                  placeholder="英文单词"
+                  className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-700"
+                />
+                <input
+                  value={item.meaning}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setWordEdits(prev => prev.map(word => word.id === item.id ? { ...word, meaning: value } : word));
+                  }}
+                  placeholder="中文释义"
+                  className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-700"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
