@@ -282,7 +282,7 @@ export const useLearningAppLogic = () => {
   const [mathDifficulty, setMathDifficulty] = useState<MathDifficulty>(() => (localStorage.getItem('app_math_difficulty') as MathDifficulty) || 'easy');
   const [currentMathQuestion, setCurrentMathQuestion] = useState<MathQuestion>(() => createMathQuestion(mathDifficulty));
 
-  const [showCelebration, setShowCelebration] = useState<{ show: boolean; points: number; type: 'success' | 'penalty' }>({
+  const [showCelebration, setShowCelebration] = useState<{ show: boolean; points: number; type: 'success' | 'penalty' | 'envelope' }>({
     show: false,
     points: 0,
     type: 'success'
@@ -469,7 +469,8 @@ export const useLearningAppLogic = () => {
       }
       const nextPoints = points + totalGain;
       updateAchievements(nextPoints, nextTotalCorrect, nextStreak, envelopesOpened);
-      setShowCelebration({ show: true, points: totalGain, type: 'success' });
+      const celebrationType = bonus > 0 ? 'envelope' : 'success';
+      setShowCelebration({ show: true, points: totalGain, type: celebrationType });
       playSound('success');
       safeConfetti({
         particleCount: 60,
@@ -539,8 +540,10 @@ export const useLearningAppLogic = () => {
     const nextEnvelopes = envelopesOpened + 1;
     setEnvelopesOpened(nextEnvelopes);
     updateAchievements(points + pendingEnvelope.points, totalCorrect, consecutiveCorrect, nextEnvelopes);
+    setShowCelebration({ show: true, points: pendingEnvelope.points, type: 'envelope' });
     setPendingEnvelope(null);
     playSound('envelope');
+    setTimeout(() => setShowCelebration(prev => ({ ...prev, show: false })), 1200);
     safeConfetti({
       particleCount: 80,
       spread: 80,

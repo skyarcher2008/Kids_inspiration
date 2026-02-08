@@ -5,19 +5,20 @@ import { Star, CloudLightning, CloudRain } from 'lucide-react';
 interface CelebrationOverlayProps {
   isVisible: boolean;
   points: number;
-  type: 'success' | 'penalty';
+  type: 'success' | 'penalty' | 'envelope';
 }
 
 export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({ isVisible, points, type }) => {
   if (!isVisible) return null;
 
   const isPenalty = type === 'penalty';
+  const isEnvelope = type === 'envelope';
 
   return (
     <div className="fixed top-0 left-0 w-screen h-screen z-[100] flex flex-col items-center justify-center pointer-events-none overflow-hidden">
       {/* Background - Darker and gloomier for penalty */}
       <div 
-        className={`absolute top-0 left-0 w-full h-full backdrop-blur-[3px] animate-fade-out ${isPenalty ? 'bg-slate-900/80' : 'bg-black/30'}`} 
+        className={`absolute top-0 left-0 w-full h-full backdrop-blur-[3px] animate-fade-out ${isPenalty ? 'bg-slate-900/80' : isEnvelope ? 'bg-rose-900/40' : 'bg-black/30'}`} 
         style={{ animationDuration: '1.5s', animationDelay: '0.8s', animationFillMode: 'forwards' }}
       ></div>
       
@@ -25,7 +26,7 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({ isVisibl
       <div className={`relative z-10 flex flex-col items-center justify-center ${isPenalty ? 'animate-shake' : 'animate-star-enter'}`}>
         
         {/* Glow/Aura */}
-        <div className={`absolute inset-0 rounded-full blur-3xl w-80 h-80 ${isPenalty ? 'bg-slate-600/20' : 'bg-yellow-400/30 animate-pulse'}`}></div>
+        <div className={`absolute inset-0 rounded-full blur-3xl w-80 h-80 ${isPenalty ? 'bg-slate-600/20' : isEnvelope ? 'bg-rose-400/30 animate-pulse' : 'bg-yellow-400/30 animate-pulse'}`}></div>
         
         {/* Main Icon Area */}
         <div className="relative mb-8">
@@ -46,6 +47,13 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({ isVisibl
                     />
                  </div>
              </div>
+           ) : isEnvelope ? (
+             <div className="relative">
+                <div className="text-[140px] drop-shadow-[0_0_18px_rgba(251,113,133,0.6)] animate-float">🧧</div>
+                <div className="absolute -top-6 -right-6 text-4xl animate-bounce" style={{ animationDelay: '0.1s' }}>🧧</div>
+                <div className="absolute bottom-0 -left-6 text-3xl animate-pulse" style={{ animationDelay: '0.2s' }}>🧧</div>
+                <div className="absolute -bottom-4 right-0 text-3xl animate-bounce" style={{ animationDelay: '0.3s' }}>🧧</div>
+             </div>
            ) : (
              <div className="relative">
                 <Star size={160} className="text-yellow-400 fill-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.8)] animate-float" strokeWidth={1.5} />
@@ -65,7 +73,7 @@ export const CelebrationOverlay: React.FC<CelebrationOverlayProps> = ({ isVisibl
 
         {/* Text */}
         <div className={`mt-8 font-cute text-5xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] tracking-widest stroke-2 ${isPenalty ? 'text-slate-300' : 'text-white animate-pulse'}`}>
-          {isPenalty ? '哎呀，要加油...' : '太棒了!'}
+          {isPenalty ? '哎呀，要加油...' : isEnvelope ? '红包到啦!' : '太棒了!'}
         </div>
       </div>
     </div>
