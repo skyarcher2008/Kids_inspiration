@@ -1,0 +1,585 @@
+import argparse
+import csv
+import os
+import re
+import tempfile
+from typing import Dict, List, Tuple, Optional
+
+ 
+
+from docx import Document
+from docx.oxml.ns import qn
+
+ 
+
+ 
+
+def read_docx_text_with_underlines(path: str) -> str:
+    """Read docx text, preserving underlined content as ____ placeholders."""
+    doc = Document(path)
+    parts: List[str] = []
+    
+    for paragraph in doc.paragraphs:
+        para_text = extract_paragraph_with_underlines(paragraph)
+        if para_text.strip():
+            parts.append(para_text.strip())
+    
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    para_text = extract_paragraph_with_underlines(paragraph)
+                    if para_text.strip():
+                        parts.append(para_text.strip())
+    
+    return "\n".join(parts)
+
+ 
+
+ 
+
+def extract_paragraph_with_underlines(paragraph) -> str:
+    """Extract text from a paragraph, converting underlined runs to ____ ."""
+    result = []
+    last_was_blank = False
+    
+    for run in paragraph.runs:
+        text = run.text
+        # Check if run is underlined
+        is_underlined = False
+        if run.underline:
+            is_underlined = True
+        # Also check XML for underline
+        rpr = run._element.find(qn('w:rPr'))
+        if rpr is not None:
+            u_elem = rpr.find(qn('w:u'))
+            if u_elem is not None:
+                val = u_elem.get(qn('w:val'))
+                if val and val != 'none':
+                    is_underlined = True
+        
+        if is_underlined and (not text or text.isspace()):
+            # Underlined blank/whitespace -> placeholder (avoid consecutive)
+            if not last_was_blank:
+                result.append(" ____ ")
+                last_was_blank = True
+        else:
+            result.append(text)
+            last_was_blank = False
+    
+    return "".join(result)
+
+ 
+
+ 
+
+def read_docx_text(path: str) -> str:
+    """Fallback: read docx text without underline detection."""
+    doc = Document(path)
+    parts: List[str] = []
+    for paragraph in doc.paragraphs:
+        text = paragraph.text.strip()
+        if text:
+            parts.append(text)
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                text = cell.text.strip()
+                if text:
+                    parts.append(text)
+    return "\n".join(parts)
+
+ 
+
+ 
+
+def normalize_text(text: str) -> str:
+    """Normalize text for easier parsing."""
+    # Replace full-width punctuation
+    text = text.replace("．", ".")
+    text = text.replace("，", ",")
+    text = text.replace("？", "?")
+    text = text.replace("！", "!")
+    text = text.replace("：", ":")
+    text = text.replace("（", "(")
+    text = text.replace("）", ")")
+    text = text.replace("、", ".")
+    
+    # Remove source markers
+    text = re.sub(r"\[来源[:：][^\]]+\]", "", text)
+    text = re.sub(r"\[[^\]]*学科网[^\]]*\]", "", text)
+    text = re.sub(r"\[来源[^\]]*\]", "", text)
+    
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    normalized_lines = []
+    for line in lines:
+        line = line.replace("\t", " ")
+        # Convert multiple underscores to placeholder
+        line = re.sub(r"_{2,}", " ____ ", line)
+        # Normalize parentheses with spaces inside
+        line = re.sub(r"\(\s+\)", "( )", line)
+        # If not an option line, convert large whitespace to blank placeholder
+        if not re.match(r"^\s*[A-D]\s*[\.．]", line):
+            line = re.sub(r"\s{3,}", " ____ ", line)
+        line = re.sub(r"\s+", " ", line)
+        # Normalize option format: ensure space before option letter
+        line = re.sub(r"\s*([A-D])\s*[\.．]\s*", r" \1. ", line)
+        normalized_lines.append(line.strip())
+    
+    result = " ".join(normalized_lines).strip()
+    
+    # Merge consecutive blank placeholders
+    result = re.sub(r"(____ )+____", "____", result)
+    result = re.sub(r"\s+", " ", result)
+    
+    return result
+
+ 
+
+ 
+
+def extract_answer_key(text: str) -> Dict[int, str]:
+    """Extract answer key from various answer section formats."""
+    key = {}
+    
+    # Try multiple answer section patterns
+    answer_patterns = [
+        r"答案[:：\s]",
+        r"参考答案[:：\s]",
+        r"【答案】",
+        r"Answer[s]?[:：\s]",
+    ]
+    
+    answer_start = -1
+    for pattern in answer_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            answer_start = match.end()
+            break
+    
+    if answer_start == -1:
+        # Try to find answers at end of document
+        # Pattern: series of "1.A 2.B 3.C" or "1A 2B 3C"
+        tail_match = re.search(r"(?:单[项选]|答案|参考).{0,20}(\d+\s*[.．:：]?\s*[A-D](?:\s+\d+\s*[.．:：]?\s*[A-D])+)", text)
+        if tail_match:
+            answer_start = tail_match.start(1)
+    
+    if answer_start == -1:
+        return key
+    
+    tail = text[answer_start:]
+    
+    # Extract individual answers
+    for match in re.finditer(r"(\d+)\s*[.．:：]?\s*([A-D])", tail):
+        key[int(match.group(1))] = match.group(2).upper()
+    
+    return key
+
+ 
+
+ 
+
+def split_questions(text: str) -> List[Tuple[int, str]]:
+    """Split text into individual question blocks with various formats."""
+    
+    # Multiple patterns for question markers:
+    # 1. ( )1. or (   )1. or （ ）1.
+    # 2. 1. or 1、 at line start
+    # 3. (1) or （1）
+    patterns = [
+        # Pattern: ( ) followed by number - most common in Chinese textbooks
+        r"[\(（][^)）A-D]*[\)）]\s*(\d+)\s*[\.．、]?",
+        # Pattern: number at start with period/dot
+        r"(?:^|\n)\s*(\d+)\s*[\.．、]\s*(?=[—\-]|[A-Za-z\u4e00-\u9fff])",
+        # Pattern: (number) format
+        r"[\(（](\d+)[\)）]\s*[\.．、]?",
+    ]
+    
+    all_matches = []
+    
+    for pattern in patterns:
+        for match in re.finditer(pattern, text):
+            num = int(match.group(1))
+            # Avoid duplicates by checking position
+            pos = match.start()
+            if not any(abs(pos - m[0]) < 5 for m in all_matches):
+                all_matches.append((pos, match.end(), num))
+    
+    # Sort by position
+    all_matches.sort(key=lambda x: x[0])
+    
+    blocks: List[Tuple[int, str]] = []
+    for idx, (start_pos, end_pos, number) in enumerate(all_matches):
+        # Find end of this question block
+        if idx + 1 < len(all_matches):
+            block_end = all_matches[idx + 1][0]
+        else:
+            block_end = len(text)
+        
+        block = text[end_pos:block_end].strip()
+        if block:
+            blocks.append((number, block))
+    
+    return blocks
+
+def parse_block(block: str) -> Tuple[str, List[str]]:
+    """Parse a question block to extract stem and options."""
+    
+    # Find all option markers (A. B. C. D.)
+    option_pattern = r"([A-D])\s*[\.．]\s*"
+    option_matches = list(re.finditer(option_pattern, block))
+    
+    # Check if we have A. marker or if options start with B.
+    has_option_a = any(m.group(1) == 'A' for m in option_matches)
+    
+    # Need at least 2 options for a valid question (B. and C. minimum)
+    if len(option_matches) < 2:
+        return "", []
+    
+    # If no A. marker but has B., the first option (A) is between stem and B.
+    if not has_option_a:
+        first_b_match = next((m for m in option_matches if m.group(1) == 'B'), None)
+        if first_b_match:
+            # Split at B. marker - everything before B. contains stem + option A
+            stem_and_option_a = block[:first_b_match.start()].strip()
+            
+            # Remove trailing ____ first (these are just answer markers)
+            stem_and_option_a_clean = re.sub(r'\s*____\s*$', '', stem_and_option_a).strip()
+            
+            # Strategy: The stem is a complete sentence ending with punctuation
+            # Option A is the word(s) between the end of the sentence and B.
+            # Pattern: "Stem sentence. option_a" or "Stem with ____. option_a"
+            
+            # Look for the last sentence-ending punctuation
+            # The stem ends there, and option A is what follows
+            sentence_end_match = re.search(r'(.+[.?!。？！:：])\s+(\S+.*)$', stem_and_option_a_clean)
+            
+            if sentence_end_match:
+                stem = sentence_end_match.group(1).strip()
+                option_a = sentence_end_match.group(2).strip()
+            else:
+                # No clear sentence boundary - check if there's a ____ in the stem
+                # Pattern: "There ____ something option_a"
+                # In this case, we need to find where the stem's meaning ends
+                
+                # Try to find pattern: words after ____ that don't belong to stem
+                # Heuristic: if the text after ____ ends with common stem-ending patterns
+                blank_match = re.search(r'(.+____\s*[^.?!。？！:：]+[.?!。？！:：]?)\s*(\S+.*)$', stem_and_option_a_clean)
+                if blank_match:
+                    potential_stem = blank_match.group(1).strip()
+                    potential_option = blank_match.group(2).strip()
+                    # Check if potential_option looks like an answer (short, no punctuation inside)
+                    if len(potential_option.split()) <= 5 and not re.search(r'[.?!。？！](?!$)', potential_option):
+                        stem = potential_stem
+                        option_a = potential_option
+                    else:
+                        # Fall back to simpler heuristic
+                        words = stem_and_option_a_clean.split()
+                        if len(words) > 1:
+                            stem = ' '.join(words[:-1])
+                            option_a = words[-1]
+                        else:
+                            stem = stem_and_option_a_clean
+                            option_a = ""
+                else:
+                    # Simple fallback: last word is option A
+                    words = stem_and_option_a_clean.split()
+                    if len(words) > 1:
+                        stem = ' '.join(words[:-1])
+                        option_a = words[-1]
+                    else:
+                        stem = stem_and_option_a_clean
+                        option_a = ""
+            
+            # Extract options B, C, D
+            options = [option_a]
+            for i, match in enumerate(option_matches):
+                start = match.end()
+                if i + 1 < len(option_matches):
+                    end = option_matches[i + 1].start()
+                else:
+                    end = len(block)
+                option_text = block[start:end].strip()
+                option_text = clean_option_text(option_text)
+                options.append(option_text)
+            
+            # Clean option A
+            options[0] = clean_option_text(options[0])
+            
+            # Pad to 4 options
+            while len(options) < 4:
+                options.append("N/A")
+            options = options[:4]
+            
+            return stem.strip(), options
+    
+    # Standard case: has A. marker
+    # Extract stem (text before first option)
+    stem = block[:option_matches[0].start()].strip()
+    
+    # Extract options
+    options: List[str] = []
+    for i in range(len(option_matches)):
+        start = option_matches[i].end()
+        if i + 1 < len(option_matches):
+            end = option_matches[i + 1].start()
+        else:
+            end = len(block)
+        
+        option_text = block[start:end].strip()
+        option_text = clean_option_text(option_text)
+        options.append(option_text)
+    
+    # Pad to 4 options if needed
+    while len(options) < 4:
+        options.append("N/A")
+    
+    # Only take first 4 options
+    options = options[:4]
+    
+    return stem, options
+
+ 
+
+ 
+
+def clean_option_text(option_text: str) -> str:
+    """Clean up option text by removing artifacts and trailing markers."""
+    # Pattern: Chinese section headers like "二、..." or "情景交际"
+    option_text = re.sub(r"\s*[一二三四五六七八九十]+[、.．].*$", "", option_text).strip()
+    # Pattern: question markers like "( )1." at the end
+    option_text = re.sub(r"[\(（][^)）]*[\)）]\s*\d+\s*[\.．、]?\s*$", "", option_text).strip()
+    # Pattern: section titles in Chinese
+    option_text = re.sub(r"\s*(情景交际|单项选择|根据所给情境|选择正确答案).*$", "", option_text).strip()
+    
+    # Remove leading ____ that might be format artifacts
+    option_text = re.sub(r"^____\s*", "", option_text).strip()
+    
+    # Remove trailing ____ with any whitespace variations (answer marks in test papers)
+    option_text = re.sub(r"\s*____\s*$", "", option_text).strip()
+    
+    return option_text
+
+ 
+
+ 
+
+def parse_docx_to_rows(input_path: str) -> Tuple[List[List[str]], Dict[str, int], List[Tuple[int, str]]]:
+    """Parse a docx file and extract grammar questions."""
+    # Try reading with underline detection first
+    try:
+        raw_text = read_docx_text_with_underlines(input_path)
+    except Exception:
+        raw_text = read_docx_text(input_path)
+    
+    if not raw_text.strip():
+        return [], {
+            "raw_lines": 0,
+            "question_blocks": 0,
+            "parsed": 0,
+            "skipped": 0
+        }, []
+    
+    normalized = normalize_text(raw_text)
+    answer_key = extract_answer_key(normalized)
+    questions = split_questions(normalized)
+
+ 
+
+    rows = []
+    skipped = 0
+    skipped_blocks: List[Tuple[int, str]] = []
+    for number, block in questions:
+        stem, options = parse_block(block)
+        # Now we accept questions with 2-4 options (options list is always padded to 4)
+        if not stem or not options or options[0] == "N/A":
+            skipped += 1
+            skipped_blocks.append((number, block))
+            continue
+        answer = answer_key.get(number, "")
+        rows.append([stem, options[0], options[1], options[2], options[3], answer, ""])
+    return rows, {
+        "raw_lines": len(raw_text.splitlines()),
+        "question_blocks": len(questions),
+        "parsed": len(rows),
+        "skipped": skipped
+    }, skipped_blocks
+
+def collect_word_files(input_path: str) -> List[str]:
+    """Collect all Word files from a path, filtering out temp files."""
+    input_path = os.path.abspath(input_path)
+    if os.path.isdir(input_path):
+        files = [
+            os.path.join(input_path, name)
+            for name in os.listdir(input_path)
+            if name.lower().endswith((".docx", ".doc"))
+            and not name.startswith("~$")  # Skip Word temp files
+        ]
+        return sorted(files)
+    return [input_path]
+
+ 
+
+ 
+
+def convert_doc_to_docx(word_app, input_path: str, temp_dir: str) -> str:
+    input_path = os.path.abspath(input_path)
+    base = os.path.splitext(os.path.basename(input_path))[0]
+    output_path = os.path.join(temp_dir, f"{base}.docx")
+    document = word_app.Documents.Open(input_path, ReadOnly=True)
+    try:
+        document.SaveAs(output_path, FileFormat=16)
+    finally:
+        document.Close(False)
+    return output_path
+
+ 
+
+ 
+
+def write_debug_files(debug_dir: str, file_name: str, normalized: str, skipped_blocks: List[Tuple[int, str]]) -> None:
+    if not debug_dir:
+        return
+    os.makedirs(debug_dir, exist_ok=True)
+    normalized_path = os.path.join(debug_dir, f"{file_name}.normalized.txt")
+    with open(normalized_path, "w", encoding="utf-8") as f:
+        f.write(normalized)
+    if skipped_blocks:
+        skipped_path = os.path.join(debug_dir, f"{file_name}.skipped.txt")
+        with open(skipped_path, "w", encoding="utf-8") as f:
+            for number, block in skipped_blocks:
+                f.write(f"[{number}] {block}\n")
+
+ 
+
+ 
+
+def convert_docx_to_csv(input_path: str, output_path: str, debug_dir: str) -> int:
+    files = collect_word_files(input_path)
+    rows: List[List[str]] = []
+    warnings: List[str] = []
+    word_app = None
+    temp_dir = None
+    try:
+        needs_word = any(path.lower().endswith(".doc") for path in files)
+        if needs_word:
+            import win32com.client  # type: ignore
+
+ 
+
+            word_app = win32com.client.Dispatch("Word.Application")
+            word_app.Visible = False
+            word_app.DisplayAlerts = 0
+            temp_dir = tempfile.mkdtemp(prefix="docx_tmp_")
+
+ 
+
+        for file_path in files:
+            file_name = os.path.basename(file_path)
+            source_path = file_path
+            try:
+                if file_path.lower().endswith(".doc"):
+                    if not word_app or not temp_dir:
+                        raise RuntimeError("Word COM is not available for .doc conversion")
+                    source_path = convert_doc_to_docx(word_app, file_path, temp_dir)
+
+ 
+
+                file_rows, stats, skipped_blocks = parse_docx_to_rows(source_path)
+
+ 
+
+                # For debug output, try underline-aware reading first
+                try:
+                    raw_for_debug = read_docx_text_with_underlines(source_path)
+                except Exception:
+                    raw_for_debug = read_docx_text(source_path)
+                normalized = normalize_text(raw_for_debug)
+                write_debug_files(debug_dir, os.path.splitext(file_name)[0], normalized, skipped_blocks)
+            except Exception as exc:
+                warnings.append(f"[ERROR] {file_name}: {exc}")
+                continue
+
+ 
+
+            rows.extend(file_rows)
+            if stats["question_blocks"] == 0:
+                warnings.append(
+                    f"[WARN] {file_name}: no question markers like '( )1.' detected (lines={stats['raw_lines']})."
+                )
+            elif stats["parsed"] == 0:
+                warnings.append(
+                    f"[WARN] {file_name}: question blocks found but options not parsed (blocks={stats['question_blocks']})."
+                )
+            elif stats["skipped"] > 0:
+                warnings.append(
+                    f"[WARN] {file_name}: skipped {stats['skipped']} block(s) due to missing options (parsed={stats['parsed']})."
+                )
+    finally:
+        if word_app:
+            word_app.Quit()
+        if temp_dir and os.path.isdir(temp_dir):
+            for name in os.listdir(temp_dir):
+                try:
+                    os.remove(os.path.join(temp_dir, name))
+                except OSError:
+                    pass
+            try:
+                os.rmdir(temp_dir)
+            except OSError:
+                pass
+
+ 
+
+    with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.writer(f)
+        writer.writerows(rows)
+
+ 
+
+    if warnings:
+        for w in warnings:
+            try:
+                print(w)
+            except UnicodeEncodeError:
+                print(w.encode('ascii', errors='replace').decode('ascii'))
+
+ 
+
+    return len(rows)
+
+ 
+
+ 
+
+def main() -> None:
+    import sys
+    # Ensure stdout can handle unicode
+    if sys.stdout.encoding != 'utf-8':
+        try:
+            sys.stdout.reconfigure(encoding='utf-8')
+        except AttributeError:
+            pass  # Python < 3.7
+    
+    parser = argparse.ArgumentParser(description="Convert grammar questions from DOCX to CSV for import.")
+    parser.add_argument("input", help="Input .docx path or folder containing .docx files")
+    parser.add_argument("-o", "--output", default="grammar-import.csv", help="Output CSV path")
+    parser.add_argument("--debug-dir", default="", help="Write normalized text and skipped blocks per file")
+    args = parser.parse_args()
+
+ 
+
+    count = convert_docx_to_csv(args.input, args.output, args.debug_dir)
+    try:
+        print(f"Saved {count} questions to {args.output}")
+    except UnicodeEncodeError:
+        print(f"Saved {count} questions")
+
+ 
+
+ 
+
+if __name__ == "__main__":
+    main()
+
+
