@@ -694,20 +694,73 @@ export const useLearningAppLogic = () => {
 
   const parseGrammarRows = (rows: string[][]) => {
     const list: GrammarQuestion[] = [];
+    let fallbackAnswerCount = 0;
+    let skippedCount = 0;
+
+    const parseAnswerIndex = (rawAnswer: string) => {
+      const normalized = rawAnswer.trim().toUpperCase();
+      const direct = ['A', 'B', 'C', 'D'].indexOf(normalized);
+      if (direct >= 0) return direct;
+
+      const letterMatch = normalized.match(/[A-D]/);
+      if (letterMatch) {
+        const index = ['A', 'B', 'C', 'D'].indexOf(letterMatch[0]);
+        if (index >= 0) return index;
+      }
+
+      const numberMatch = normalized.match(/[1-4]/);
+      if (numberMatch) {
+        const index = Number(numberMatch[0]) - 1;
+        if (index >= 0 && index <= 3) return index;
+      }
+
+      return -1;
+    };
+
     rows.forEach(row => {
-      if (row.length < LEARNING_CONFIG.grammarImport.expectedColumns - 1) return;
-      const [sentence, a, b, c, d, answer, explanation] = row.map(item => `${item || ''}`.trim());
-      const answerIndex = ['A', 'B', 'C', 'D'].indexOf(answer.toUpperCase());
-      if (!sentence || answerIndex < 0) return;
+      if (row.length < 2) {
+        skippedCount += 1;
+        return;
+      }
+
+      const [sentenceRaw, aRaw, bRaw, cRaw, dRaw, answerRaw, explanationRaw] = row.map(item => `${item || ''}`.trim());
+      const sentence = sentenceRaw;
+      if (!sentence) {
+        skippedCount += 1;
+        return;
+      }
+
+      const options = [aRaw, bRaw, cRaw, dRaw].map((option) => {
+        const normalized = option.trim();
+        if (!normalized || normalized.toUpperCase() === 'N/A' || normalized === '/' || normalized === '／' || /^选项[A-D]$/i.test(normalized)) {
+          return '/';
+        }
+        return normalized;
+      });
+
+      let answerIndex = parseAnswerIndex(answerRaw || '');
+      let fallbackApplied = false;
+
+      if (answerIndex < 0) {
+        answerIndex = 0;
+        fallbackApplied = true;
+        fallbackAnswerCount += 1;
+      }
+
+      const explanation = fallbackApplied
+        ? `${explanationRaw || '请根据语法规则选择正确答案。'}（导入提示：原文件缺少可识别答案，已默认设为A，请后续核对）`
+        : (explanationRaw || '请根据语法规则选择正确答案。');
+
       list.push({
         id: generateId(),
         sentence,
-        options: [a, b, c, d],
+        options,
         answerIndex,
-        explanation: explanation || '请根据语法规则选择正确答案。'
+        explanation
       });
     });
-    return list;
+
+    return { list, fallbackAnswerCount, skippedCount };
   };
 
   const importGrammar = async (file: File) => {
@@ -719,9 +772,17 @@ export const useLearningAppLogic = () => {
         const workbook = XLSX.read(data, { type: 'array' });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as string[][];
-        const newQuestions = parseGrammarRows(rows);
-        setGrammarQuestions(prev => [...newQuestions, ...prev]);
-        showToast(`成功导入 ${newQuestions.length} 道语法题`, 'success');
+        const result = parseGrammarRows(rows);
+        setGrammarQuestions(prev => [...result.list, ...prev]);
+        if (result.list.length === 0) {
+          showToast('未识别到可导入语法题', 'error');
+          return;
+        }
+        if (result.fallbackAnswerCount > 0) {
+          showToast(`成功导入 ${result.list.length} 题，其中 ${result.fallbackAnswerCount} 题缺少答案已默认A`, 'info');
+          return;
+        }
+        showToast(`成功导入 ${result.list.length} 道语法题`, 'success');
         return;
       }
 
@@ -736,9 +797,17 @@ export const useLearningAppLogic = () => {
           text.split(/\n|\r/).forEach(line => lines.push(line));
         }
         const rows = lines.map(line => line.split(LEARNING_CONFIG.grammarImport.pdfDelimiter).map(item => item.trim()));
-        const newQuestions = parseGrammarRows(rows);
-        setGrammarQuestions(prev => [...newQuestions, ...prev]);
-        showToast(`成功导入 ${newQuestions.length} 道语法题`, 'success');
+        const result = parseGrammarRows(rows);
+        setGrammarQuestions(prev => [...result.list, ...prev]);
+        if (result.list.length === 0) {
+          showToast('未识别到可导入语法题', 'error');
+          return;
+        }
+        if (result.fallbackAnswerCount > 0) {
+          showToast(`成功导入 ${result.list.length} 题，其中 ${result.fallbackAnswerCount} 题缺少答案已默认A`, 'info');
+          return;
+        }
+        showToast(`成功导入 ${result.list.length} 道语法题`, 'success');
         return;
       }
       showToast('暂不支持该文件格式', 'error');
