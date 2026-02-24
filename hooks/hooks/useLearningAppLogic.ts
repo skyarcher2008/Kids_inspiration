@@ -13,7 +13,6 @@ import { LEARNING_CONFIG } from '../../config/learningConfig';
 import { Achievement, GrammarQuestion, MathDifficulty, MathQuestion, Reward, Transaction, WordItem } from '../../types';
 import { ThemeKey } from '../../styles/themes';
 import { ToastType } from '../../components/Toast';
-import { syncService } from '../../services/syncService';
 
 GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -282,7 +281,7 @@ export const useLearningAppLogic = () => {
   const [mathDifficulty, setMathDifficulty] = useState<MathDifficulty>(() => (localStorage.getItem('app_math_difficulty') as MathDifficulty) || 'easy');
   const [currentMathQuestion, setCurrentMathQuestion] = useState<MathQuestion>(() => createMathQuestion(mathDifficulty));
 
-  const [showCelebration, setShowCelebration] = useState<{ show: boolean; points: number; type: 'success' | 'penalty' | 'envelope' }>({
+  const [showCelebration, setShowCelebration] = useState<{ show: boolean; points: number; type: 'success' | 'penalty' }>({
     show: false,
     points: 0,
     type: 'success'
@@ -296,15 +295,6 @@ export const useLearningAppLogic = () => {
 
   const [backupUpdatedAt, setBackupUpdatedAt] = useState<string>(() => localStorage.getItem(BACKUP_TIME_KEY) || '');
   const [notificationUrl, setNotificationUrl] = useState<string>(() => localStorage.getItem('app_notification_url') || '');
-  const [syncFamilyId, setSyncFamilyId] = useState<string>(() => localStorage.getItem('app_sync_family_id') || '');
-  const [syncPassword, setSyncPassword] = useState<string>(() => localStorage.getItem('app_sync_password') || '');
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'saved' | 'error'>('idle');
-  const [lastSyncAt, setLastSyncAt] = useState<string>(() => localStorage.getItem('app_sync_last') || '');
-  const [syncAutoEnabled, setSyncAutoEnabled] = useState(false);
-  const [dataUpdatedAt, setDataUpdatedAt] = useState<number>(() => {
-    const saved = localStorage.getItem('app_data_updated_at');
-    return saved ? parseInt(saved, 10) : Date.now();
-  });
 
   useEffect(() => localStorage.setItem('app_username', userName), [userName]);
   useEffect(() => localStorage.setItem('app_theme', themeKey), [themeKey]);
@@ -323,11 +313,6 @@ export const useLearningAppLogic = () => {
   useEffect(() => localStorage.setItem('app_math_difficulty', mathDifficulty), [mathDifficulty]);
   useEffect(() => localStorage.setItem('app_backup_time', backupUpdatedAt), [backupUpdatedAt]);
   useEffect(() => localStorage.setItem('app_notification_url', notificationUrl), [notificationUrl]);
-  useEffect(() => localStorage.setItem('app_sync_family_id', syncFamilyId), [syncFamilyId]);
-  useEffect(() => localStorage.setItem('app_sync_password', syncPassword), [syncPassword]);
-  useEffect(() => localStorage.setItem('app_sync_last', lastSyncAt), [lastSyncAt]);
-  useEffect(() => localStorage.setItem('app_data_updated_at', dataUpdatedAt.toString()), [dataUpdatedAt]);
-  useEffect(() => setSyncAutoEnabled(false), [syncFamilyId]);
 
   const showToast = useCallback((message: string, type: ToastType = 'success') => {
     setToast({ show: true, message, type });
@@ -447,16 +432,16 @@ export const useLearningAppLogic = () => {
     const nextSubjectStreak = isCorrect ? currentStats.consecutiveCorrect + 1 : 0;
     const nextSubjectBestStreak = Math.max(currentStats.bestStreak, nextSubjectStreak);
 
-    let nextQuestionsSinceEnvelope = currentStats.questionsSinceEnvelope + (isCorrect ? 1 : 0);
+    let nextQuestionsSinceEnvelope = currentStats.questionsSinceEnvelope + 1;
     const isDouble = nextDailyCount <= config.dailyDoubleLimit;
 
     let bonus = 0;
     if (isCorrect && nextSubjectStreak > 0 && nextSubjectStreak % config.streakRewardInterval === 0) {
-      bonus = 10;
+      bonus = 5;
     }
 
-    const baseGain = config.basePoints * (isDouble ? 2 : 1);
-    const totalGain = isCorrect ? baseGain + bonus : 0;
+    const baseGain = config.basePoints + bonus;
+    const totalGain = isCorrect ? baseGain * (isDouble ? 2 : 1) : 0;
 
     if (isCorrect) {
       const labels = [] as string[];
@@ -464,13 +449,9 @@ export const useLearningAppLogic = () => {
       if (isDouble) labels.push('双倍积分（每日前十题）');
       if (extraLabel && !labels.includes(extraLabel)) labels.push(extraLabel);
       addPoints(totalGain, `${config.label}答题 +${totalGain}${labels.length ? `（${labels.join('，')}）` : ''}`);
-      if (bonus > 0) {
-        showToast(`连对奖励 +${bonus} 分`, 'success');
-      }
       const nextPoints = points + totalGain;
       updateAchievements(nextPoints, nextTotalCorrect, nextStreak, envelopesOpened);
-      const celebrationType = bonus > 0 ? 'envelope' : 'success';
-      setShowCelebration({ show: true, points: totalGain, type: celebrationType });
+      setShowCelebration({ show: true, points: totalGain, type: 'success' });
       playSound('success');
       safeConfetti({
         particleCount: 60,
@@ -488,7 +469,7 @@ export const useLearningAppLogic = () => {
 
     let nextSignInStreak = currentStats.signInStreak;
     let nextLastSignInDate = currentStats.lastSignInDate;
-    const shouldSignIn = isCorrect && currentStats.lastSignInDate !== todayKey;
+    const shouldSignIn = currentStats.lastSignInDate !== todayKey;
     if (shouldSignIn) {
       nextSignInStreak = currentStats.lastSignInDate && isYesterday(currentStats.lastSignInDate, todayKey)
         ? currentStats.signInStreak + 1
@@ -505,7 +486,7 @@ export const useLearningAppLogic = () => {
         sourceLabel: config.label,
         signInDay: nextSignInStreak
       });
-    } else if (canOpenEnvelope && isCorrect && nextQuestionsSinceEnvelope >= config.envelopeInterval) {
+    } else if (canOpenEnvelope && nextQuestionsSinceEnvelope >= config.envelopeInterval) {
       const reward = getEnvelopeReward(nextSubjectTotalAnswered);
       setPendingEnvelope({
         points: reward.points,
@@ -540,10 +521,8 @@ export const useLearningAppLogic = () => {
     const nextEnvelopes = envelopesOpened + 1;
     setEnvelopesOpened(nextEnvelopes);
     updateAchievements(points + pendingEnvelope.points, totalCorrect, consecutiveCorrect, nextEnvelopes);
-    setShowCelebration({ show: true, points: pendingEnvelope.points, type: 'envelope' });
     setPendingEnvelope(null);
     playSound('envelope');
-    setTimeout(() => setShowCelebration(prev => ({ ...prev, show: false })), 1200);
     safeConfetti({
       particleCount: 80,
       spread: 80,
@@ -694,73 +673,20 @@ export const useLearningAppLogic = () => {
 
   const parseGrammarRows = (rows: string[][]) => {
     const list: GrammarQuestion[] = [];
-    let fallbackAnswerCount = 0;
-    let skippedCount = 0;
-
-    const parseAnswerIndex = (rawAnswer: string) => {
-      const normalized = rawAnswer.trim().toUpperCase();
-      const direct = ['A', 'B', 'C', 'D'].indexOf(normalized);
-      if (direct >= 0) return direct;
-
-      const letterMatch = normalized.match(/[A-D]/);
-      if (letterMatch) {
-        const index = ['A', 'B', 'C', 'D'].indexOf(letterMatch[0]);
-        if (index >= 0) return index;
-      }
-
-      const numberMatch = normalized.match(/[1-4]/);
-      if (numberMatch) {
-        const index = Number(numberMatch[0]) - 1;
-        if (index >= 0 && index <= 3) return index;
-      }
-
-      return -1;
-    };
-
     rows.forEach(row => {
-      if (row.length < 2) {
-        skippedCount += 1;
-        return;
-      }
-
-      const [sentenceRaw, aRaw, bRaw, cRaw, dRaw, answerRaw, explanationRaw] = row.map(item => `${item || ''}`.trim());
-      const sentence = sentenceRaw;
-      if (!sentence) {
-        skippedCount += 1;
-        return;
-      }
-
-      const options = [aRaw, bRaw, cRaw, dRaw].map((option) => {
-        const normalized = option.trim();
-        if (!normalized || normalized.toUpperCase() === 'N/A' || normalized === '/' || normalized === '／' || /^选项[A-D]$/i.test(normalized)) {
-          return '/';
-        }
-        return normalized;
-      });
-
-      let answerIndex = parseAnswerIndex(answerRaw || '');
-      let fallbackApplied = false;
-
-      if (answerIndex < 0) {
-        answerIndex = 0;
-        fallbackApplied = true;
-        fallbackAnswerCount += 1;
-      }
-
-      const explanation = fallbackApplied
-        ? `${explanationRaw || '请根据语法规则选择正确答案。'}（导入提示：原文件缺少可识别答案，已默认设为A，请后续核对）`
-        : (explanationRaw || '请根据语法规则选择正确答案。');
-
+      if (row.length < LEARNING_CONFIG.grammarImport.expectedColumns - 1) return;
+      const [sentence, a, b, c, d, answer, explanation] = row.map(item => `${item || ''}`.trim());
+      const answerIndex = ['A', 'B', 'C', 'D'].indexOf(answer.toUpperCase());
+      if (!sentence || answerIndex < 0) return;
       list.push({
         id: generateId(),
         sentence,
-        options,
+        options: [a, b, c, d],
         answerIndex,
-        explanation
+        explanation: explanation || '请根据语法规则选择正确答案。'
       });
     });
-
-    return { list, fallbackAnswerCount, skippedCount };
+    return list;
   };
 
   const importGrammar = async (file: File) => {
@@ -772,17 +698,9 @@ export const useLearningAppLogic = () => {
         const workbook = XLSX.read(data, { type: 'array' });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as string[][];
-        const result = parseGrammarRows(rows);
-        setGrammarQuestions(prev => [...result.list, ...prev]);
-        if (result.list.length === 0) {
-          showToast('未识别到可导入语法题', 'error');
-          return;
-        }
-        if (result.fallbackAnswerCount > 0) {
-          showToast(`成功导入 ${result.list.length} 题，其中 ${result.fallbackAnswerCount} 题缺少答案已默认A`, 'info');
-          return;
-        }
-        showToast(`成功导入 ${result.list.length} 道语法题`, 'success');
+        const newQuestions = parseGrammarRows(rows);
+        setGrammarQuestions(prev => [...newQuestions, ...prev]);
+        showToast(`成功导入 ${newQuestions.length} 道语法题`, 'success');
         return;
       }
 
@@ -797,17 +715,9 @@ export const useLearningAppLogic = () => {
           text.split(/\n|\r/).forEach(line => lines.push(line));
         }
         const rows = lines.map(line => line.split(LEARNING_CONFIG.grammarImport.pdfDelimiter).map(item => item.trim()));
-        const result = parseGrammarRows(rows);
-        setGrammarQuestions(prev => [...result.list, ...prev]);
-        if (result.list.length === 0) {
-          showToast('未识别到可导入语法题', 'error');
-          return;
-        }
-        if (result.fallbackAnswerCount > 0) {
-          showToast(`成功导入 ${result.list.length} 题，其中 ${result.fallbackAnswerCount} 题缺少答案已默认A`, 'info');
-          return;
-        }
-        showToast(`成功导入 ${result.list.length} 道语法题`, 'success');
+        const newQuestions = parseGrammarRows(rows);
+        setGrammarQuestions(prev => [...newQuestions, ...prev]);
+        showToast(`成功导入 ${newQuestions.length} 道语法题`, 'success');
         return;
       }
       showToast('暂不支持该文件格式', 'error');
@@ -817,52 +727,33 @@ export const useLearningAppLogic = () => {
     }
   };
 
-  const buildExportData = (lastUpdated: number) => ({
-    userName,
-    themeKey,
-    points,
-    totalAnswered,
-    totalCorrect,
-    consecutiveCorrect,
-    bestStreak,
-    envelopesOpened,
-    subjectStats,
-    rewards,
-    achievements,
-    words,
-    grammarQuestions,
-    transactions,
-    notificationUrl,
-    lastUpdated
-  });
-
-  const exportData = () => JSON.stringify(buildExportData(dataUpdatedAt));
+  const exportData = () => {
+    return JSON.stringify({
+      userName,
+      themeKey,
+      points,
+      totalAnswered,
+      totalCorrect,
+      consecutiveCorrect,
+      bestStreak,
+      envelopesOpened,
+      subjectStats,
+      rewards,
+      achievements,
+      words,
+      grammarQuestions,
+      transactions,
+      notificationUrl
+    });
+  };
 
   const createBackup = useCallback(() => {
-    const now = Date.now();
-    const payload = JSON.stringify(buildExportData(now));
+    const payload = exportData();
     localStorage.setItem(BACKUP_KEY, payload);
     const timestamp = new Date().toISOString();
     localStorage.setItem(BACKUP_TIME_KEY, timestamp);
     setBackupUpdatedAt(timestamp);
-    setDataUpdatedAt(now);
-  }, [
-    userName,
-    themeKey,
-    points,
-    totalAnswered,
-    totalCorrect,
-    consecutiveCorrect,
-    bestStreak,
-    envelopesOpened,
-    subjectStats,
-    rewards,
-    achievements,
-    words,
-    grammarQuestions,
-    transactions,
-    notificationUrl
-  ]);
+  }, [exportData]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -891,33 +782,24 @@ export const useLearningAppLogic = () => {
     createBackup
   ]);
 
-  const importDataObject = async (data: any) => {
-    if (typeof data.userName === 'string') setUserName(data.userName);
-    if (data.themeKey) setThemeKey(data.themeKey as ThemeKey);
-    if (typeof data.points === 'number') setPoints(data.points);
-    if (typeof data.totalAnswered === 'number') setTotalAnswered(data.totalAnswered);
-    if (typeof data.totalCorrect === 'number') setTotalCorrect(data.totalCorrect);
-    if (typeof data.consecutiveCorrect === 'number') setConsecutiveCorrect(data.consecutiveCorrect);
-    if (typeof data.bestStreak === 'number') setBestStreak(data.bestStreak);
-    if (typeof data.envelopesOpened === 'number') setEnvelopesOpened(data.envelopesOpened);
-    if (data.subjectStats) setSubjectStats(normalizeSubjectStats(data.subjectStats, getDateKey()));
-    if (Array.isArray(data.rewards)) setRewards(data.rewards);
-    if (Array.isArray(data.achievements)) setAchievements(data.achievements);
-    if (Array.isArray(data.words)) setWords(data.words);
-    if (Array.isArray(data.grammarQuestions)) setGrammarQuestions(data.grammarQuestions);
-    if (Array.isArray(data.transactions)) setTransactions(data.transactions);
-    if (typeof data.notificationUrl === 'string') setNotificationUrl(data.notificationUrl);
-    if (typeof data.lastUpdated === 'number') {
-      setDataUpdatedAt(data.lastUpdated);
-    } else {
-      setDataUpdatedAt(Date.now());
-    }
-  };
-
   const importData = async (content: string) => {
     try {
       const data = JSON.parse(content);
-      await importDataObject(data);
+      if (typeof data.userName === 'string') setUserName(data.userName);
+      if (data.themeKey) setThemeKey(data.themeKey as ThemeKey);
+      if (typeof data.points === 'number') setPoints(data.points);
+      if (typeof data.totalAnswered === 'number') setTotalAnswered(data.totalAnswered);
+      if (typeof data.totalCorrect === 'number') setTotalCorrect(data.totalCorrect);
+      if (typeof data.consecutiveCorrect === 'number') setConsecutiveCorrect(data.consecutiveCorrect);
+      if (typeof data.bestStreak === 'number') setBestStreak(data.bestStreak);
+      if (typeof data.envelopesOpened === 'number') setEnvelopesOpened(data.envelopesOpened);
+      if (data.subjectStats) setSubjectStats(normalizeSubjectStats(data.subjectStats, getDateKey()));
+      if (Array.isArray(data.rewards)) setRewards(data.rewards);
+      if (Array.isArray(data.achievements)) setAchievements(data.achievements);
+      if (Array.isArray(data.words)) setWords(data.words);
+      if (Array.isArray(data.grammarQuestions)) setGrammarQuestions(data.grammarQuestions);
+      if (Array.isArray(data.transactions)) setTransactions(data.transactions);
+      if (typeof data.notificationUrl === 'string') setNotificationUrl(data.notificationUrl);
       showToast('数据导入成功', 'success');
       return true;
     } catch (error) {
@@ -936,93 +818,6 @@ export const useLearningAppLogic = () => {
     return importData(backup);
   };
 
-  const syncConfigured = syncService.isConfigured();
-
-  const createFamilyId = () => {
-    const id = syncService.generateFamilyId();
-    setSyncFamilyId(id);
-    showToast('已生成家庭ID', 'success');
-  };
-
-  const syncPull = useCallback(async () => {
-    if (!syncConfigured) {
-      showToast('未配置同步地址', 'error');
-      return false;
-    }
-    if (!syncFamilyId) {
-      showToast('请先填写家庭ID', 'error');
-      return false;
-    }
-    setSyncStatus('syncing');
-    try {
-      const result = await syncService.loadData(syncFamilyId, syncPassword || undefined);
-      if (!result.data) {
-        setSyncStatus('error');
-        showToast('云端暂无数据', 'error');
-        return false;
-      }
-      const remoteUpdated = result.lastUpdated || 0;
-      if (remoteUpdated > dataUpdatedAt) {
-        await importDataObject(result.data);
-      }
-      setLastSyncAt(new Date().toISOString());
-      setSyncStatus('saved');
-      setSyncAutoEnabled(true);
-      showToast('同步完成', 'success');
-      return true;
-    } catch (error: any) {
-      setSyncStatus('error');
-      if (error?.message === 'sync_auth_failed') {
-        showToast('同步密码错误', 'error');
-      } else {
-        showToast('同步失败，请检查网络或地址', 'error');
-      }
-      return false;
-    }
-  }, [syncConfigured, syncFamilyId, syncPassword, dataUpdatedAt]);
-
-  const syncPush = useCallback(async () => {
-    if (!syncConfigured) return false;
-    if (!syncFamilyId) return false;
-    setSyncStatus('syncing');
-    try {
-      const now = Date.now();
-      const payload = buildExportData(now);
-      await syncService.saveData(syncFamilyId, payload, syncPassword || undefined);
-      setDataUpdatedAt(now);
-      setLastSyncAt(new Date().toISOString());
-      setSyncStatus('saved');
-      setSyncAutoEnabled(true);
-      return true;
-    } catch (error: any) {
-      setSyncStatus('error');
-      if (error?.message === 'sync_conflict') {
-        showToast('云端数据更新，请先下载同步', 'error');
-      } else if (error?.message === 'sync_auth_failed') {
-        showToast('同步密码错误', 'error');
-      } else {
-        showToast('上传失败，请检查网络或地址', 'error');
-      }
-      return false;
-    }
-  }, [syncConfigured, syncFamilyId, syncPassword, userName, themeKey, points, totalAnswered, totalCorrect, consecutiveCorrect, bestStreak, envelopesOpened, subjectStats, rewards, achievements, words, grammarQuestions, transactions, notificationUrl]);
-
-  useEffect(() => {
-    if (!syncConfigured || !syncFamilyId || !syncAutoEnabled) return;
-    const timer = setTimeout(() => {
-      syncPush();
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [syncConfigured, syncFamilyId, syncPassword, dataUpdatedAt, syncPush, syncAutoEnabled]);
-
-  const disconnectSync = () => {
-    setSyncFamilyId('');
-    setSyncPassword('');
-    setSyncStatus('idle');
-    setSyncAutoEnabled(false);
-    showToast('已断开同步', 'success');
-  };
-
   const resetData = () => {
     if (window.confirm('确定要重置所有数据吗？此操作无法撤销！')) {
       localStorage.clear();
@@ -1036,17 +831,17 @@ export const useLearningAppLogic = () => {
   const mathStats = subjectStats.math;
   const mathAccuracy = mathStats.totalAnswered > 0 ? Math.round((mathStats.totalCorrect / mathStats.totalAnswered) * 100) : 0;
   const mathLuckValue = calculateLuck(mathStats.totalAnswered);
-  const mathEnvelopeCountdown = pendingEnvelope ? 0 : Math.max(0, SOURCE_CONFIG.math.envelopeInterval - mathStats.questionsSinceEnvelope);
+  const mathEnvelopeCountdown = SOURCE_CONFIG.math.envelopeInterval - mathStats.questionsSinceEnvelope;
 
   const wordStats = subjectStats.word;
   const wordAccuracy = wordStats.totalAnswered > 0 ? Math.round((wordStats.totalCorrect / wordStats.totalAnswered) * 100) : 0;
   const wordLuckValue = calculateLuck(wordStats.totalAnswered);
-  const wordEnvelopeCountdown = pendingEnvelope ? 0 : Math.max(0, SOURCE_CONFIG.word.envelopeInterval - wordStats.questionsSinceEnvelope);
+  const wordEnvelopeCountdown = SOURCE_CONFIG.word.envelopeInterval - wordStats.questionsSinceEnvelope;
 
   const grammarStats = subjectStats.grammar;
   const grammarAccuracy = grammarStats.totalAnswered > 0 ? Math.round((grammarStats.totalCorrect / grammarStats.totalAnswered) * 100) : 0;
   const grammarLuckValue = calculateLuck(grammarStats.totalAnswered);
-  const grammarEnvelopeCountdown = pendingEnvelope ? 0 : Math.max(0, SOURCE_CONFIG.grammar.envelopeInterval - grammarStats.questionsSinceEnvelope);
+  const grammarEnvelopeCountdown = SOURCE_CONFIG.grammar.envelopeInterval - grammarStats.questionsSinceEnvelope;
 
   return {
     state: {
@@ -1070,11 +865,6 @@ export const useLearningAppLogic = () => {
       grammarAccuracy,
       grammarLuckValue,
       grammarEnvelopeCountdown,
-      syncFamilyId,
-      syncPassword,
-      syncStatus,
-      syncConfigured,
-      lastSyncAt,
       backupUpdatedAt,
       notificationUrl,
       rewards,
@@ -1113,12 +903,6 @@ export const useLearningAppLogic = () => {
       importData,
       restoreFromBackup,
       setNotificationUrl,
-      setSyncFamilyId,
-      setSyncPassword,
-      createFamilyId,
-      syncPull,
-      syncPush,
-      disconnectSync,
       resetData,
       showToast,
       hideToast
